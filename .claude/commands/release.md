@@ -27,7 +27,9 @@ If $ARGUMENTS is provided, use it as the new version number. Otherwise, auto-inc
 - If any check fails, STOP and report
 
 ### 1.2 Run Tests
+Clean build cache first (SPM cache can be stale from mutagen sync across endpoints):
 ```
+swift package clean
 swift test --package-path .
 ```
 - All tests must pass. If any fail, STOP and report.
@@ -110,8 +112,13 @@ Create `ExportOptions.plist` if it doesn't exist:
 ```
 
 ### 3.4 Notarize
+Zip the app first (notarytool requires a zip, not a bare .app):
 ```
-xcrun notarytool submit build/export/Helix.app --zip \
+ditto -c -k --keepParent build/export/Helix.app build/Helix-notarize.zip
+```
+Then submit using absolute paths:
+```
+xcrun notarytool submit /absolute/path/to/build/Helix-notarize.zip \
   --key ~/.appstoreconnect/AuthKey_B9ZAC83PUL.p8 \
   --key-id B9ZAC83PUL \
   --issuer 69a6de8e-e98e-47e3-e053-5b8c7c11a4d1 \
