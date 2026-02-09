@@ -41,4 +41,4 @@ targets:
         CFBundleName: Helix
         CFBundleShortVersionString: "2026.2.0"
         CFBundleVersion: "1"
-        SUFeedURL: "https://helix.hexul.com/appcast.xml"
+        SUFeedURL: "https://raw.githubusercontent.com/hex/Helix/main/appcast.xml"
