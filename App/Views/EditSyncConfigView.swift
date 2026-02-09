@@ -2,7 +2,7 @@
 // ABOUTME: Pre-fills from the current session, shows warning about the destructive operation.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct EditSyncConfigView: View {
     let session: SyncSession

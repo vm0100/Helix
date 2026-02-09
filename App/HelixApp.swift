@@ -3,7 +3,7 @@
 
 import Sparkle
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 @main
 struct HelixApp: App {

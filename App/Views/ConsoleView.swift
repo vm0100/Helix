@@ -2,7 +2,7 @@
 // ABOUTME: Auto-scrolls to bottom, color-codes by level, and provides a clear button.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct ConsoleView: View {
     private let console = ConsoleLog.shared

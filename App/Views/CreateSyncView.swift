@@ -2,7 +2,7 @@
 // ABOUTME: Steps: Endpoints -> Mode -> Options -> Review with CLI command preview.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct CreateSyncView: View {
     let store: SessionStore

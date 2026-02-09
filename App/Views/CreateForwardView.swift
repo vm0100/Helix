@@ -2,7 +2,7 @@
 // ABOUTME: Configures source/destination endpoints with protocol and address fields.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct CreateForwardView: View {
     let store: SessionStore

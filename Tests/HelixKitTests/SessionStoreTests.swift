@@ -3,7 +3,7 @@
 
 import Testing
 import Foundation
-@testable import MutagenKit
+@testable import HelixKit
 
 struct FakeProvider: SessionProvider {
     var syncSessions: [SyncSession]

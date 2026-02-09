@@ -3,7 +3,7 @@
 
 import Testing
 import Foundation
-@testable import MutagenKit
+@testable import HelixKit
 
 @Suite("Live CLI integration", .enabled(if: ProcessInfo.processInfo.environment["MUTAGEN_INTEGRATION"] != nil))
 struct IntegrationTests {

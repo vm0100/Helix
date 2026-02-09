@@ -2,7 +2,7 @@
 // ABOUTME: Provides action buttons for pause/resume, flush, reset, and terminate.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct SyncDetailView: View {
     let session: SyncSession

@@ -62,10 +62,10 @@ The architecture is split into two layers:
 
 | Layer | Description |
 |-------|-------------|
-| **MutagenKit** | Swift Package providing models, CLI wrapper, session state management, and cross-transport file operations |
+| **HelixKit** | Swift Package providing models, CLI wrapper, session state management, and cross-transport file operations |
 | **App** | SwiftUI menu bar app with views, components, and keyboard commands |
 
-MutagenKit defines a `SessionProvider` protocol so the entire CLI surface can be swapped out for testing.
+HelixKit defines a `SessionProvider` protocol so the entire CLI surface can be swapped out for testing.
 
 ## Project Structure
 
@@ -75,14 +75,14 @@ Helix/
     HelixApp.swift          # Entry point, menu bar + window scenes
     Views/                  # Main window, detail views, create/edit sheets
     Components/             # Reusable UI (StatusBadge, EndpointPicker, etc.)
-  Sources/MutagenKit/
+  Sources/HelixKit/
     CLI.swift               # Concrete mutagen CLI wrapper
     SessionStore.swift      # Observable state + polling
     CommandBuilder.swift    # Typed option structs -> argument arrays
     FileTransport.swift     # Cross-endpoint copy/stat/remove
     Models/                 # SyncSession, ForwardSession, Endpoint, Conflict
-  Tests/MutagenKitTests/    # Unit and integration tests
-  Package.swift             # SPM package for MutagenKit
+  Tests/HelixKitTests/    # Unit and integration tests
+  Package.swift             # SPM package for HelixKit
   project.yml               # XcodeGen project definition
 ```
 

@@ -2,7 +2,7 @@
 // ABOUTME: Green for healthy, blue for active, orange for warning, red for error.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct MenuBarIcon: View {
     let health: HealthStatus

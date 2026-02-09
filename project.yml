@@ -7,7 +7,7 @@ options:
   xcodeVersion: "16.0"
 
 packages:
-  MutagenKit:
+  HelixKit:
     path: .
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
@@ -20,8 +20,8 @@ targets:
     sources:
       - path: App
     dependencies:
-      - package: MutagenKit
-        product: MutagenKit
+      - package: HelixKit
+        product: HelixKit
       - package: Sparkle
         product: Sparkle
     settings:

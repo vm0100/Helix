@@ -11,7 +11,7 @@
 		25E1F6397E277CC3433FEFD7 /* HelixApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE5AC6C882BDBCDB4C6C41F /* HelixApp.swift */; };
 		2C39B29DD1F9A46BA758003B /* ForwardDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EF23FC972D666D2E0F4602 /* ForwardDetailView.swift */; };
 		2E94BB0145EB0FDEEB076318 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A907274BFEF61629F49AD6 /* FlowLayout.swift */; };
-		3464F8E91741A8BE46F11BA1 /* MutagenKit in Frameworks */ = {isa = PBXBuildFile; productRef = EC2C5D8FF3633A961057665B /* MutagenKit */; };
+		3464F8E91741A8BE46F11BA1 /* HelixKit in Frameworks */ = {isa = PBXBuildFile; productRef = 313C9AA3D5A9CD038EF2DF8A /* HelixKit */; };
 		39041BB1D3F0AD49B96A1DF5 /* CreateSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5109622A83040BAC39A7B120 /* CreateSyncView.swift */; };
 		5DDE83060B5C93A12CA7E757 /* SyncModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891C37B09E27AEF0D77BD41B /* SyncModePicker.swift */; };
 		5E7722A6240EFDC19E3EF1FC /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B9C9847DC36C9AEC8903D8 /* StatusBadge.swift */; };
@@ -58,7 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3464F8E91741A8BE46F11BA1 /* MutagenKit in Frameworks */,
+				3464F8E91741A8BE46F11BA1 /* HelixKit in Frameworks */,
 				EE52DECAF14522DC044CAB47 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -150,7 +150,7 @@
 			);
 			name = Helix;
 			packageProductDependencies = (
-				EC2C5D8FF3633A961057665B /* MutagenKit */,
+				313C9AA3D5A9CD038EF2DF8A /* HelixKit */,
 				A997EB8488CFF05515BCE68A /* Sparkle */,
 			);
 			productName = Helix;
@@ -431,14 +431,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		313C9AA3D5A9CD038EF2DF8A /* HelixKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HelixKit;
+		};
 		A997EB8488CFF05515BCE68A /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 756BD1F0398371233E4764BA /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		EC2C5D8FF3633A961057665B /* MutagenKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = MutagenKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

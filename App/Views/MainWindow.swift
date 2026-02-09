@@ -2,7 +2,7 @@
 // ABOUTME: Supports filtering by type (sync/forward) and status (healthy/conflicts/paused).
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 enum SidebarFilter: Hashable {
     case all

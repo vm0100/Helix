@@ -2,7 +2,7 @@
 // ABOUTME: Provides Local/SSH/Docker transport selection with context-appropriate fields.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 enum TransportType: String, CaseIterable {
     case local = "Local"

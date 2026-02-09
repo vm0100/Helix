@@ -2,7 +2,7 @@
 // ABOUTME: Provides action buttons for pause/resume and terminate.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct ForwardDetailView: View {
     let session: ForwardSession

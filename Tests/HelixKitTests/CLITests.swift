@@ -3,7 +3,7 @@
 
 import Testing
 import Foundation
-@testable import MutagenKit
+@testable import HelixKit
 
 @Suite("CLI command execution")
 struct CLITests {

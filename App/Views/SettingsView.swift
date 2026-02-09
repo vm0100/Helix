@@ -4,7 +4,7 @@
 import ServiceManagement
 import Sparkle
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct SettingsView: View {
     let store: SessionStore

@@ -2,7 +2,7 @@
 // ABOUTME: Lists all sessions with status dots and provides quick actions.
 
 import SwiftUI
-import MutagenKit
+import HelixKit
 
 struct MenuBarPopover: View {
     let store: SessionStore

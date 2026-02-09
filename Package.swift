@@ -1,26 +1,26 @@
 // swift-tools-version: 5.9
-// ABOUTME: SPM package defining MutagenKit library for mutagen CLI integration.
+// ABOUTME: SPM package defining HelixKit library for mutagen CLI integration.
 // ABOUTME: Provides models, CLI wrapper, and session state management.
 
 import PackageDescription
 
 let package = Package(
-    name: "MutagenKit",
+    name: "HelixKit",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .library(name: "MutagenKit", targets: ["MutagenKit"]),
+        .library(name: "HelixKit", targets: ["HelixKit"]),
     ],
     targets: [
         .target(
-            name: "MutagenKit",
-            path: "Sources/MutagenKit"
+            name: "HelixKit",
+            path: "Sources/HelixKit"
         ),
         .testTarget(
-            name: "MutagenKitTests",
-            dependencies: ["MutagenKit"],
-            path: "Tests/MutagenKitTests",
+            name: "HelixKitTests",
+            dependencies: ["HelixKit"],
+            path: "Tests/HelixKitTests",
             resources: [
                 .copy("Fixtures"),
             ]

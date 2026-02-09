@@ -3,7 +3,7 @@
 
 import Testing
 import Foundation
-@testable import MutagenKit
+@testable import HelixKit
 
 @Suite("Sync create command building")
 struct SyncCommandBuilderTests {
