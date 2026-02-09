@@ -1,0 +1,258 @@
+// ABOUTME: Compact popover shown when clicking the menu bar icon.
+// ABOUTME: Lists all sessions with status dots and provides quick actions.
+
+import SwiftUI
+import MutagenKit
+
+struct MenuBarPopover: View {
+    let store: SessionStore
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+
+            if !store.daemonRunning {
+                daemonWarning
+            } else if store.totalSessionCount == 0 {
+                emptyState
+            } else {
+                sessionList
+            }
+
+            Divider()
+            footer
+        }
+        .task {
+            store.startPolling()
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Helix")
+                .font(.headline)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var daemonWarning: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "exclamationmark.triangle")
+                .font(.largeTitle)
+                .foregroundStyle(.orange)
+            Text("Daemon not running")
+                .font(.headline)
+            Text("Start the mutagen daemon to manage sessions.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .padding()
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text("No active sessions")
+                .font(.headline)
+            Text("Mutagen syncs files and forwards ports\nbetween local and remote environments.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Create Your First Session") {
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .controlSize(.small)
+            Spacer()
+        }
+        .padding()
+    }
+
+    private var sessionList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(store.syncSessions) { session in
+                    SyncSessionRow(session: session, store: store)
+                        .onTapGesture {
+                            store.pendingSessionSelection = session.identifier
+                            openWindow(id: "main")
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                    Divider().padding(.leading, 28)
+                }
+                ForEach(store.forwardSessions) { session in
+                    ForwardSessionRow(session: session, store: store)
+                        .onTapGesture {
+                            store.pendingSessionSelection = session.identifier
+                            openWindow(id: "main")
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                    Divider().padding(.leading, 28)
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Button("Open Helix") {
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            Spacer()
+            if let error = store.lastError {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Session Rows
+
+private struct SyncSessionRow: View {
+    let session: SyncSession
+    let store: SessionStore
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            StatusBadge(status: session.status, paused: session.paused)
+                .padding(.top, 5)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.name ?? String(session.identifier.prefix(12)))
+                    .font(.body)
+                    .lineLimit(1)
+
+                Text(endpointSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                HStack(spacing: 8) {
+                    if let cycles = session.successfulCycles, cycles > 0 {
+                        Text("\(cycles) cycles")
+                    }
+                    if let conflicts = session.conflicts, !conflicts.isEmpty {
+                        Text("\(conflicts.count) conflicts")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .contextMenu {
+            if session.paused {
+                Button("Resume") { Task { await store.resumeSync(session.identifier) } }
+            } else {
+                Button("Pause") { Task { await store.pauseSync(session.identifier) } }
+                Button("Flush") { Task { await store.flushSync(session.identifier) } }
+            }
+            Divider()
+            Button("Terminate", role: .destructive) {
+                Task { await store.terminateSync(session.identifier) }
+            }
+        }
+    }
+
+    private var endpointSummary: String {
+        let alpha = endpointLabel(session.alpha)
+        let beta = endpointLabel(session.beta)
+        let arrow = (session.mode ?? "two-way-safe").hasPrefix("one-way") ? "->" : "<->"
+        return "\(alpha) \(arrow) \(beta)"
+    }
+
+    private func endpointLabel(_ endpoint: Endpoint) -> String {
+        switch endpoint.protocol_ {
+        case "ssh":
+            if let user = endpoint.user, let host = endpoint.host {
+                return "\(user)@\(host)"
+            }
+            return endpoint.host ?? "ssh"
+        case "docker":
+            return "docker"
+        default:
+            return "local"
+        }
+    }
+}
+
+private struct ForwardSessionRow: View {
+    let session: ForwardSession
+    let store: SessionStore
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            StatusBadge(
+                status: session.source.connected == true ? "watching" : "disconnected",
+                paused: session.paused
+            )
+            .padding(.top, 5)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.name ?? String(session.identifier.prefix(12)))
+                    .font(.body)
+                    .lineLimit(1)
+
+                Text(endpointSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Image(systemName: "network")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .contextMenu {
+            if session.paused {
+                Button("Resume") { Task { await store.resumeForward(session.identifier) } }
+            } else {
+                Button("Pause") { Task { await store.pauseForward(session.identifier) } }
+            }
+            Divider()
+            Button("Terminate", role: .destructive) {
+                Task { await store.terminateForward(session.identifier) }
+            }
+        }
+    }
+
+    private var endpointSummary: String {
+        let src = session.sourceEndpoint ?? "source"
+        let dst = session.destinationEndpoint ?? "destination"
+        return "\(src) -> \(dst)"
+    }
+}

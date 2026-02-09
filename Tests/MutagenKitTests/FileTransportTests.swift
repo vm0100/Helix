@@ -1,0 +1,381 @@
+// ABOUTME: Tests for FileTransport command generation and stat output parsing.
+// ABOUTME: Uses injectable execute closure to verify correct commands without running processes.
+
+import Testing
+import Foundation
+@testable import MutagenKit
+
+@Suite("FileTransport copy commands")
+struct FileTransportCopyTests {
+
+    // MARK: - Local to Local
+
+    @Test("local to local uses cp")
+    func localToLocal() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .local(path: "/tmp/a/file.txt"),
+            to: .local(path: "/tmp/b/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/bin/cp")
+        #expect(cmd.arguments == ["-Rp", "/tmp/a/file.txt", "/tmp/b/file.txt"])
+    }
+
+    // MARK: - Local <-> SSH
+
+    @Test("local to ssh uses scp")
+    func localToSSH() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .local(path: "/tmp/a/file.txt"),
+            to: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/scp")
+        #expect(cmd.arguments == ["-r", "/tmp/a/file.txt", "deploy@server.com:/opt/file.txt"])
+    }
+
+    @Test("ssh to local uses scp")
+    func sshToLocal() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .ssh(user: nil, host: "server.com", port: nil, path: "/opt/file.txt"),
+            to: .local(path: "/tmp/b/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/scp")
+        #expect(cmd.arguments == ["-r", "server.com:/opt/file.txt", "/tmp/b/file.txt"])
+    }
+
+    @Test("ssh with port uses scp -P flag")
+    func sshWithPort() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .local(path: "/tmp/file.txt"),
+            to: .ssh(user: "root", host: "box", port: 2222, path: "/data/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/scp")
+        #expect(cmd.arguments == ["-r", "-P", "2222", "/tmp/file.txt", "root@box:/data/file.txt"])
+    }
+
+    // MARK: - Local <-> Docker
+
+    @Test("local to docker uses docker cp")
+    func localToDocker() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .local(path: "/tmp/a/file.txt"),
+            to: .docker(container: "myapp", path: "/app/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["cp", "/tmp/a/file.txt", "myapp:/app/file.txt"])
+    }
+
+    @Test("docker to local uses docker cp")
+    func dockerToLocal() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .docker(container: "myapp", path: "/app/file.txt"),
+            to: .local(path: "/tmp/b/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["cp", "myapp:/app/file.txt", "/tmp/b/file.txt"])
+    }
+
+    // MARK: - SSH to SSH
+
+    @Test("ssh to ssh uses scp directly")
+    func sshToSSH() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .ssh(user: "a", host: "host1", port: nil, path: "/file.txt"),
+            to: .ssh(user: "b", host: "host2", port: nil, path: "/file.txt")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/scp")
+        #expect(cmd.arguments == ["-3", "-r", "a@host1:/file.txt", "b@host2:/file.txt"])
+    }
+
+    // MARK: - Cross-transport (via temp file)
+
+    @Test("ssh to docker copies via temp file")
+    func sshToDocker() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .ssh(user: "deploy", host: "server", port: nil, path: "/opt/file.txt"),
+            to: .docker(container: "myapp", path: "/app/file.txt")
+        )
+
+        // Should be 2 commands: scp to temp, docker cp from temp
+        #expect(recorder.commands.count == 2)
+        let scpCmd = recorder.commands[0]
+        #expect(scpCmd.executable == "/usr/bin/scp")
+        #expect(scpCmd.arguments.contains("deploy@server:/opt/file.txt"))
+
+        let dockerCmd = recorder.commands[1]
+        #expect(dockerCmd.executable == "/usr/bin/docker")
+        #expect(dockerCmd.arguments.first == "cp")
+        #expect(dockerCmd.arguments.last == "myapp:/app/file.txt")
+    }
+
+    @Test("docker to ssh copies via temp file")
+    func dockerToSSH() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .docker(container: "myapp", path: "/app/file.txt"),
+            to: .ssh(user: "deploy", host: "server", port: nil, path: "/opt/file.txt")
+        )
+
+        #expect(recorder.commands.count == 2)
+        let dockerCmd = recorder.commands[0]
+        #expect(dockerCmd.executable == "/usr/bin/docker")
+
+        let scpCmd = recorder.commands[1]
+        #expect(scpCmd.executable == "/usr/bin/scp")
+    }
+
+    @Test("docker to docker copies via temp file")
+    func dockerToDocker() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.copy(
+            from: .docker(container: "app1", path: "/file.txt"),
+            to: .docker(container: "app2", path: "/file.txt")
+        )
+
+        #expect(recorder.commands.count == 2)
+        #expect(recorder.commands[0].executable == "/usr/bin/docker")
+        #expect(recorder.commands[1].executable == "/usr/bin/docker")
+    }
+}
+
+@Suite("FileTransport stat parsing")
+struct FileTransportStatTests {
+
+    @Test("stat parses local macOS output")
+    func statLocal() async throws {
+        let recorder = CommandRecorder(output: "1024 1700000000")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let info = try await transport.stat(endpoint: .local(path: "/tmp/file.txt"))
+
+        #expect(info.size == 1024)
+        #expect(info.modifiedAt == Date(timeIntervalSince1970: 1700000000))
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/stat")
+        #expect(cmd.arguments == ["-f", "%z %m", "/tmp/file.txt"])
+    }
+
+    @Test("stat parses ssh remote output")
+    func statSSH() async throws {
+        let recorder = CommandRecorder(output: "2048 1700000000")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let info = try await transport.stat(
+            endpoint: .ssh(user: "deploy", host: "server", port: nil, path: "/opt/file.txt")
+        )
+
+        #expect(info.size == 2048)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        // Uses cross-platform stat: tries GNU stat first, falls back to macOS stat
+        #expect(cmd.arguments == ["deploy@server", "stat -c '%s %Y' /opt/file.txt 2>/dev/null || stat -f '%z %m' /opt/file.txt"])
+    }
+
+    @Test("stat parses docker exec output")
+    func statDocker() async throws {
+        let recorder = CommandRecorder(output: "4096 1700000000")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let info = try await transport.stat(
+            endpoint: .docker(container: "myapp", path: "/app/file.txt")
+        )
+
+        #expect(info.size == 4096)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "stat", "-c", "%s %Y", "/app/file.txt"])
+    }
+
+    @Test("stat ssh with port passes -p flag")
+    func statSSHWithPort() async throws {
+        let recorder = CommandRecorder(output: "512 1700000000")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.stat(
+            endpoint: .ssh(user: nil, host: "box", port: 2222, path: "/file.txt")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["-p", "2222", "box", "stat -c '%s %Y' /file.txt 2>/dev/null || stat -f '%z %m' /file.txt"])
+    }
+
+    @Test("stat throws on malformed output")
+    func statMalformedOutput() async throws {
+        let recorder = CommandRecorder(output: "garbage")
+        let transport = FileTransport(execute: recorder.execute)
+
+        await #expect(throws: FileTransportError.self) {
+            try await transport.stat(endpoint: .local(path: "/tmp/file.txt"))
+        }
+    }
+}
+
+@Suite("FileTransport remove commands")
+struct FileTransportRemoveTests {
+
+    @Test("remove local uses rm -rf")
+    func removeLocal() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.remove(endpoint: .local(path: "/tmp/a/dir"))
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/bin/rm")
+        #expect(cmd.arguments == ["-rf", "/tmp/a/dir"])
+    }
+
+    @Test("remove ssh uses ssh rm -rf")
+    func removeSSH() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.remove(
+            endpoint: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/dir")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["deploy@server.com", "rm -rf '/opt/dir'"])
+    }
+
+    @Test("remove ssh with port passes -p flag")
+    func removeSSHWithPort() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.remove(
+            endpoint: .ssh(user: nil, host: "box", port: 2222, path: "/data/dir")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["-p", "2222", "box", "rm -rf '/data/dir'"])
+    }
+
+    @Test("remove docker uses docker exec rm -rf")
+    func removeDocker() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.remove(
+            endpoint: .docker(container: "myapp", path: "/app/dir")
+        )
+
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "rm", "-rf", "/app/dir"])
+    }
+}
+
+@Suite("FileTransport error propagation")
+struct FileTransportErrorTests {
+
+    @Test("copy propagates execute errors")
+    func copyError() async throws {
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 1, stderr: "permission denied")
+        }
+
+        await #expect(throws: CLIError.self) {
+            try await transport.copy(
+                from: .local(path: "/a"),
+                to: .local(path: "/b")
+            )
+        }
+    }
+
+    @Test("stat propagates execute errors")
+    func statError() async throws {
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 1, stderr: "no such file")
+        }
+
+        await #expect(throws: CLIError.self) {
+            try await transport.stat(endpoint: .local(path: "/nonexistent"))
+        }
+    }
+}
+
+// MARK: - Test Helpers
+
+struct RecordedCommand: Sendable {
+    let executable: String
+    let arguments: [String]
+}
+
+final class CommandRecorder: @unchecked Sendable {
+    private var _commands: [RecordedCommand] = []
+    private let lock = NSLock()
+    private let output: String
+
+    init(output: String = "") {
+        self.output = output
+    }
+
+    var commands: [RecordedCommand] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _commands
+    }
+
+    func execute(_ executable: String, _ arguments: [String]) async throws -> String {
+        lock.lock()
+        _commands.append(RecordedCommand(executable: executable, arguments: arguments))
+        lock.unlock()
+        return output
+    }
+}

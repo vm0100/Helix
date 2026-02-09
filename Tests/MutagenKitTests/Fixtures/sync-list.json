@@ -1,0 +1,170 @@
+[
+    {
+        "identifier": "sync_o9Zd4SmhxkoZtatHgvRccF4XhS9tL1kWLuTWVsTkknj",
+        "version": 1,
+        "creationTime": "2026-02-04T14:41:09.472233Z",
+        "creatingVersion": "0.18.1",
+        "alpha": {
+            "protocol": "ssh",
+            "user": "hex",
+            "host": "hex-macbookair.local",
+            "path": "~/.claude-sessions",
+            "ignore": {},
+            "symlink": {},
+            "watch": {},
+            "permissions": {},
+            "compression": {},
+            "connected": true,
+            "scanned": true,
+            "directories": 2689,
+            "files": 8503,
+            "totalFileSize": 1036688037
+        },
+        "beta": {
+            "protocol": "local",
+            "path": "/Users/alex.geana/.claude-sessions",
+            "ignore": {},
+            "symlink": {},
+            "watch": {},
+            "permissions": {},
+            "compression": {},
+            "connected": true,
+            "scanned": true,
+            "directories": 3019,
+            "files": 10400,
+            "totalFileSize": 1206437871
+        },
+        "mode": "two-way-safe",
+        "ignore": {
+            "paths": [
+                "**/.git",
+                "**/.venv",
+                "**/__pycache__",
+                "*.log",
+                ".DS_Store"
+            ]
+        },
+        "symlink": {
+            "mode": "ignore"
+        },
+        "watch": {},
+        "permissions": {},
+        "compression": {},
+        "name": "claude-sessions",
+        "paused": false,
+        "status": "watching",
+        "successfulCycles": 159,
+        "conflicts": [
+            {
+                "root": "alimentara",
+                "alphaChanges": [
+                    {
+                        "path": "alimentara",
+                        "old": {
+                            "kind": "directory",
+                            "contents": null
+                        },
+                        "new": null
+                    }
+                ],
+                "betaChanges": [
+                    {
+                        "path": "alimentara/logs/session.log",
+                        "old": null,
+                        "new": {
+                            "kind": "untracked"
+                        }
+                    }
+                ]
+            },
+            {
+                "root": "claide/logs",
+                "alphaChanges": [
+                    {
+                        "path": "claide/logs",
+                        "old": {
+                            "kind": "directory",
+                            "contents": null
+                        },
+                        "new": null
+                    }
+                ],
+                "betaChanges": [
+                    {
+                        "path": "claide/logs/session.log",
+                        "old": null,
+                        "new": {
+                            "kind": "untracked"
+                        }
+                    }
+                ]
+            },
+            {
+                "root": "crowpanel/artifacts",
+                "alphaChanges": [
+                    {
+                        "path": "crowpanel/artifacts",
+                        "old": {
+                            "kind": "directory",
+                            "contents": null
+                        },
+                        "new": null
+                    }
+                ],
+                "betaChanges": [
+                    {
+                        "path": "crowpanel/artifacts/crowpanel-test/elecrow-lib/.git",
+                        "old": null,
+                        "new": {
+                            "kind": "untracked"
+                        }
+                    }
+                ]
+            },
+            {
+                "root": "crowpanel/logs",
+                "alphaChanges": [
+                    {
+                        "path": "crowpanel/logs",
+                        "old": {
+                            "kind": "directory",
+                            "contents": null
+                        },
+                        "new": null
+                    }
+                ],
+                "betaChanges": [
+                    {
+                        "path": "crowpanel/logs/session.log",
+                        "old": null,
+                        "new": {
+                            "kind": "untracked"
+                        }
+                    }
+                ]
+            },
+            {
+                "root": "sensus/logs",
+                "alphaChanges": [
+                    {
+                        "path": "sensus/logs",
+                        "old": {
+                            "kind": "directory",
+                            "contents": null
+                        },
+                        "new": null
+                    }
+                ],
+                "betaChanges": [
+                    {
+                        "path": "sensus/logs/session.log",
+                        "old": null,
+                        "new": {
+                            "kind": "untracked"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+]
