@@ -31,21 +31,24 @@
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install --cask hex/tap/helix
+```
+
 ### Manual
 
 Download the latest `.dmg` from the [releases page](https://github.com/hex/Helix/releases).
 
 ### Build from Source
 
+Requires [XcodeGen](https://github.com/yonaskolb/XcodeGen) and Xcode 16+.
+
 ```sh
-# Clone the repository
 git clone https://github.com/hex/Helix.git
 cd Helix
-
-# Generate the Xcode project (requires xcodegen)
 xcodegen generate
-
-# Build
 xcodebuild -project Helix.xcodeproj -scheme Helix -configuration Release build
 ```
 
