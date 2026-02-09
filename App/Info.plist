@@ -20,9 +20,13 @@
 	<string>2026.2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://helix.hexul.com/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/hex/Helix/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>VJR0Igvi956+S07119jBXK+/rt1QjpUB//YJYx7ZAHs=</string>
 </dict>
 </plist>

@@ -3,5 +3,18 @@
     <channel>
         <title>Helix</title>
         <language>en</language>
+        <item>
+            <title>Version 2026.2.0</title>
+            <pubDate>Mon, 09 Feb 2026 19:26:30 +0000</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>2026.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure
+                url="https://github.com/hex/Helix/releases/download/v2026.2.0/Helix-2026.2.0.dmg"
+                type="application/octet-stream"
+                sparkle:edSignature="htzdhJnD5XkxXMEk6mNZxaN2Jq9fY1a9XLfslGdNvysQBenMSHI0kqYFZ4QqdIN//NQ36J6JoViupShZsJnkAg=="
+                length="3284998"
+            />
+        </item>
     </channel>
 </rss>
