@@ -308,6 +308,46 @@ public final class SessionStore {
         }
     }
 
+    // MARK: - Git Auto-Fix
+
+    public func fixGitMismatch(session: SyncSession, gitStatus: GitRepoStatus) async -> Bool {
+        guard gitStatus == .alphaOnly || gitStatus == .betaOnly else { return false }
+
+        let sourceEndpoint = gitStatus == .alphaOnly
+            ? session.alpha.endpointURL
+            : session.beta.endpointURL
+        let targetEndpoint = gitStatus == .alphaOnly
+            ? session.beta.endpointURL
+            : session.alpha.endpointURL
+
+        let remoteURL: String
+        let branch: String
+        do {
+            remoteURL = try await fileTransport.run(on: sourceEndpoint, command: "git config --get remote.origin.url").trimmingCharacters(in: .whitespacesAndNewlines)
+            branch = try await fileTransport.run(on: sourceEndpoint, command: "git rev-parse --abbrev-ref HEAD").trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            lastError = "Could not read git info: \(error.localizedDescription)"
+            return false
+        }
+
+        guard !remoteURL.isEmpty, !branch.isEmpty else {
+            lastError = "No git remote or branch found on the source endpoint"
+            return false
+        }
+
+        do {
+            _ = try await fileTransport.run(on: targetEndpoint, command: "git init")
+            _ = try await fileTransport.run(on: targetEndpoint, command: "git remote add origin '\(remoteURL)'")
+            _ = try await fileTransport.run(on: targetEndpoint, command: "git fetch origin")
+            _ = try await fileTransport.run(on: targetEndpoint, command: "git reset --mixed 'origin/\(branch)'")
+            lastError = nil
+            return true
+        } catch {
+            lastError = "Git init failed: \(error.localizedDescription)"
+            return false
+        }
+    }
+
     private func appendingSubpath(to endpoint: EndpointURL, subpath: String) -> EndpointURL {
         switch endpoint {
         case .local(let path):

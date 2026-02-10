@@ -649,6 +649,196 @@ struct GitRepoStatusTests {
     }
 }
 
+@Suite("SessionStore fixGitMismatch")
+struct FixGitMismatchTests {
+
+    @Test("Reads remote and branch from alpha, runs git commands on beta")
+    @MainActor
+    func alphaOnlyFixesBeta() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let log = CallLog()
+        let transport = FileTransport { executable, args in
+            log.record(executable: executable, arguments: args)
+
+            let joined = args.joined(separator: " ")
+            if joined.contains("/tmp/a") && joined.contains("remote.origin.url") {
+                return "https://github.com/example/repo.git\n"
+            }
+            if joined.contains("/tmp/a") && joined.contains("rev-parse") {
+                return "main\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+
+        #expect(success == true)
+        #expect(store.lastError == nil)
+
+        let commands = log.entries
+        #expect(commands.count == 6)
+
+        // Read remote URL from alpha
+        let readRemote = commands[0].arguments.joined(separator: " ")
+        #expect(readRemote.contains("/tmp/a") && readRemote.contains("remote.origin.url"))
+
+        // Read branch from alpha
+        let readBranch = commands[1].arguments.joined(separator: " ")
+        #expect(readBranch.contains("/tmp/a") && readBranch.contains("rev-parse"))
+
+        // git init on beta
+        let gitInit = commands[2].arguments.joined(separator: " ")
+        #expect(gitInit.contains("/tmp/b") && gitInit.contains("git init"))
+
+        // git remote add on beta
+        let remoteAdd = commands[3].arguments.joined(separator: " ")
+        #expect(remoteAdd.contains("/tmp/b") && remoteAdd.contains("git remote add origin"))
+        #expect(remoteAdd.contains("https://github.com/example/repo.git"))
+
+        // git fetch on beta
+        let fetch = commands[4].arguments.joined(separator: " ")
+        #expect(fetch.contains("/tmp/b") && fetch.contains("git fetch origin"))
+
+        // git reset on beta
+        let reset = commands[5].arguments.joined(separator: " ")
+        #expect(reset.contains("/tmp/b") && reset.contains("git reset --mixed 'origin/main'"))
+    }
+
+    @Test("betaOnly reads from beta and fixes alpha")
+    @MainActor
+    func betaOnlyFixesAlpha() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let log = CallLog()
+        let transport = FileTransport { executable, args in
+            log.record(executable: executable, arguments: args)
+
+            let joined = args.joined(separator: " ")
+            if joined.contains("/tmp/b") && joined.contains("remote.origin.url") {
+                return "git@github.com:example/repo.git\n"
+            }
+            if joined.contains("/tmp/b") && joined.contains("rev-parse") {
+                return "develop\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let success = await store.fixGitMismatch(session: session, gitStatus: .betaOnly)
+
+        #expect(success == true)
+
+        // git init should target alpha (/tmp/a)
+        let gitInit = log.entries[2].arguments.joined(separator: " ")
+        #expect(gitInit.contains("/tmp/a") && gitInit.contains("git init"))
+
+        // Reset should use develop branch
+        let reset = log.entries[5].arguments.joined(separator: " ")
+        #expect(reset.contains("origin/develop"))
+    }
+
+    @Test("No remote URL sets lastError and returns false")
+    @MainActor
+    func noRemote() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, args in
+            let joined = args.joined(separator: " ")
+            if joined.contains("remote.origin.url") {
+                return "\n"
+            }
+            if joined.contains("rev-parse") {
+                return "main\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+
+        #expect(success == false)
+        #expect(store.lastError != nil)
+        #expect(store.lastError!.contains("No git remote"))
+    }
+
+    @Test("Transport error reading git info sets lastError")
+    @MainActor
+    func readError() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 128, stderr: "not a git repository")
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+
+        #expect(success == false)
+        #expect(store.lastError != nil)
+        #expect(store.lastError!.contains("Could not read git info"))
+    }
+
+    @Test("Symmetric status returns false immediately")
+    @MainActor
+    func symmetricNoOp() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let store = SessionStore(provider: FakeProvider())
+
+        let success = await store.fixGitMismatch(session: session, gitStatus: .symmetric)
+
+        #expect(success == false)
+    }
+
+    @Test("Git init failure on target sets lastError")
+    @MainActor
+    func initFails() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        var callCount = 0
+        let lock = NSLock()
+        let transport = FileTransport { _, args in
+            lock.lock()
+            callCount += 1
+            let count = callCount
+            lock.unlock()
+
+            let joined = args.joined(separator: " ")
+            if joined.contains("remote.origin.url") {
+                return "https://github.com/example/repo.git\n"
+            }
+            if joined.contains("rev-parse") {
+                return "main\n"
+            }
+            // Fail on git init (third call)
+            if count >= 3 {
+                throw CLIError(exitCode: 1, stderr: "permission denied")
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+
+        #expect(success == false)
+        #expect(store.lastError != nil)
+        #expect(store.lastError!.contains("Git init failed"))
+    }
+}
+
+final class CallLog: @unchecked Sendable {
+    private var _entries: [RecordedCommand] = []
+    private let lock = NSLock()
+
+    var entries: [RecordedCommand] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _entries
+    }
+
+    func record(executable: String, arguments: [String]) {
+        lock.lock()
+        _entries.append(RecordedCommand(executable: executable, arguments: arguments))
+        lock.unlock()
+    }
+}
+
 func makeForwardSession(
     id: String,
     name: String?,
