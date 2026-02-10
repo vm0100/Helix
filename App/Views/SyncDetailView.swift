@@ -60,6 +60,7 @@ struct SyncDetailView: View {
             EditSyncConfigView(session: session, store: store)
         }
         .task(id: session.identifier) {
+            await store.refresh()
             gitCheck = await store.gitRepoStatus(for: session)
             if gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly {
                 let info = await store.gitSourceInfo(for: session, gitCheck: gitCheck)
