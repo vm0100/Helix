@@ -42,6 +42,7 @@ struct ConsoleView: View {
                                     .foregroundStyle(color(for: entry.level))
                             }
                             .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 1)
                             .id(entry.id)
