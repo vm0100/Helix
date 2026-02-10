@@ -363,6 +363,32 @@ public final class SessionStore {
 
     // MARK: - Git Auto-Fix
 
+    public func gitSourceInfo(
+        for session: SyncSession,
+        gitCheck: GitRepoCheck
+    ) async -> (remoteURL: String?, branch: String?) {
+        guard gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly else { return (nil, nil) }
+
+        let sourceBase = gitCheck.status == .alphaOnly
+            ? session.alpha.endpointURL
+            : session.beta.endpointURL
+        let sourceEndpoint = gitCheck.subpath.isEmpty
+            ? sourceBase
+            : appendingSubpath(to: sourceBase, subpath: gitCheck.subpath)
+
+        let remoteURL = (try? await fileTransport.run(
+            on: sourceEndpoint, command: "git config --get remote.origin.url"
+        ))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let branch = (try? await fileTransport.run(
+            on: sourceEndpoint, command: "git rev-parse --abbrev-ref HEAD"
+        ))?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return (
+            remoteURL: remoteURL?.isEmpty == true ? nil : remoteURL,
+            branch: branch?.isEmpty == true ? nil : branch
+        )
+    }
+
     public func fixGitMismatch(session: SyncSession, gitCheck: GitRepoCheck) async -> Bool {
         guard gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly else { return false }
 

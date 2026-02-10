@@ -13,6 +13,8 @@ struct SyncDetailView: View {
     @State private var gitCheck: GitRepoCheck = GitRepoCheck(status: .unknown)
     @State private var isFixingGit = false
     @State private var showManualFix = false
+    @State private var sourceRemoteURL: String?
+    @State private var sourceBranch: String?
     @AppStorage("dismissedGitMismatches") private var dismissedJSON = "[]"
 
     var body: some View {
@@ -57,7 +59,14 @@ struct SyncDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditSyncConfigView(session: session, store: store)
         }
-        .task(id: session.identifier) { gitCheck = await store.gitRepoStatus(for: session) }
+        .task(id: session.identifier) {
+            gitCheck = await store.gitRepoStatus(for: session)
+            if gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly {
+                let info = await store.gitSourceInfo(for: session, gitCheck: gitCheck)
+                sourceRemoteURL = info.remoteURL
+                sourceBranch = info.branch
+            }
+        }
     }
 
     // MARK: - Header
@@ -197,9 +206,9 @@ struct SyncDetailView: View {
                     let commands = """
                     cd \(missingPath)
                     git init
-                    git remote add origin <remote-url>
+                    git remote add origin \(sourceRemoteURL ?? "<remote-url>")
                     git fetch origin
-                    git reset --mixed origin/<branch>
+                    git reset --mixed origin/\(sourceBranch ?? "<branch>")
                     """
 
                     Text(commands)

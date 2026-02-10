@@ -867,6 +867,56 @@ struct FixGitMismatchTests {
         #expect(success == false)
     }
 
+    @Test("gitSourceInfo reads remote URL and branch from source endpoint")
+    @MainActor
+    func sourceInfo() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, args in
+            let joined = args.joined(separator: " ")
+            if joined.contains("remote.origin.url") {
+                return "https://github.com/hex/Helix.git\n"
+            }
+            if joined.contains("rev-parse") {
+                return "main\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let info = await store.gitSourceInfo(
+            for: session,
+            gitCheck: GitRepoCheck(status: .alphaOnly, subpath: "helix")
+        )
+
+        #expect(info.remoteURL == "https://github.com/hex/Helix.git")
+        #expect(info.branch == "main")
+    }
+
+    @Test("gitSourceInfo returns nil when no remote configured")
+    @MainActor
+    func sourceInfoNoRemote() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, args in
+            let joined = args.joined(separator: " ")
+            if joined.contains("remote.origin.url") {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            if joined.contains("rev-parse") {
+                return "main\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let info = await store.gitSourceInfo(
+            for: session,
+            gitCheck: GitRepoCheck(status: .alphaOnly)
+        )
+
+        #expect(info.remoteURL == nil)
+        #expect(info.branch == "main")
+    }
+
     @Test("Uses subpath when fixing subdirectory mismatch")
     @MainActor
     func fixWithSubpath() async {
