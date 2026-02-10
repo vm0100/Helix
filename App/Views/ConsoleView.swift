@@ -33,7 +33,7 @@ struct ConsoleView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
                         ForEach(console.entries) { entry in
                             HStack(alignment: .top, spacing: 6) {
                                 Text(Self.timestampFormatter.string(from: entry.timestamp))
@@ -42,12 +42,12 @@ struct ConsoleView: View {
                                     .foregroundStyle(color(for: entry.level))
                             }
                             .font(.system(size: 11, design: .monospaced))
-                            .textSelection(.enabled)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 1)
                             .id(entry.id)
                         }
                     }
+                    .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onChange(of: console.entries.count) {
