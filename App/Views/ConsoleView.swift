@@ -35,12 +35,11 @@ struct ConsoleView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(console.entries) { entry in
-                            HStack(alignment: .top, spacing: 6) {
-                                Text(Self.timestampFormatter.string(from: entry.timestamp))
-                                    .foregroundStyle(Color(hex: 0x565f89))
-                                Text(entry.message)
-                                    .foregroundStyle(color(for: entry.level))
-                            }
+                            (Text(Self.timestampFormatter.string(from: entry.timestamp))
+                                .foregroundStyle(Color(hex: 0x565f89))
+                             + Text(" ")
+                             + Text(entry.message)
+                                .foregroundStyle(color(for: entry.level)))
                             .font(.system(size: 11, design: .monospaced))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 1)
