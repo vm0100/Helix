@@ -28,6 +28,9 @@ public struct FileTransport: Sendable {
                 let result = try await runProcess(executablePath: executable, arguments: arguments)
                 await MainActor.run { ConsoleLog.shared.log(String(result.prefix(200))) }
                 return result
+            } catch let error as CLIError where error.exitCode == 1 {
+                await MainActor.run { ConsoleLog.shared.log("(exit 1)", level: .info) }
+                throw error
             } catch {
                 await MainActor.run { ConsoleLog.shared.log("FAILED: \(error)", level: .error) }
                 throw error
