@@ -380,7 +380,7 @@ public final class SessionStore {
             on: sourceEndpoint, command: "git config --get remote.origin.url"
         ))?.trimmingCharacters(in: .whitespacesAndNewlines)
         let branch = (try? await fileTransport.run(
-            on: sourceEndpoint, command: "git rev-parse --abbrev-ref HEAD"
+            on: sourceEndpoint, command: "git branch --show-current"
         ))?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return (
@@ -405,7 +405,7 @@ public final class SessionStore {
         let branch: String
         do {
             remoteURL = try await fileTransport.run(on: sourceEndpoint, command: "git config --get remote.origin.url").trimmingCharacters(in: .whitespacesAndNewlines)
-            branch = try await fileTransport.run(on: sourceEndpoint, command: "git rev-parse --abbrev-ref HEAD").trimmingCharacters(in: .whitespacesAndNewlines)
+            branch = try await fileTransport.run(on: sourceEndpoint, command: "git branch --show-current").trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             lastError = "Could not read git info: \(error.localizedDescription)"
             return false

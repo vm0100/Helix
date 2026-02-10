@@ -744,7 +744,7 @@ struct FixGitMismatchTests {
             if joined.contains("/tmp/a") && joined.contains("remote.origin.url") {
                 return "https://github.com/example/repo.git\n"
             }
-            if joined.contains("/tmp/a") && joined.contains("rev-parse") {
+            if joined.contains("/tmp/a") && joined.contains("branch --show-current") {
                 return "main\n"
             }
             return ""
@@ -765,7 +765,7 @@ struct FixGitMismatchTests {
 
         // Read branch from alpha
         let readBranch = commands[1].arguments.joined(separator: " ")
-        #expect(readBranch.contains("/tmp/a") && readBranch.contains("rev-parse"))
+        #expect(readBranch.contains("/tmp/a") && readBranch.contains("branch --show-current"))
 
         // git init on beta
         let gitInit = commands[2].arguments.joined(separator: " ")
@@ -797,7 +797,7 @@ struct FixGitMismatchTests {
             if joined.contains("/tmp/b") && joined.contains("remote.origin.url") {
                 return "git@github.com:example/repo.git\n"
             }
-            if joined.contains("/tmp/b") && joined.contains("rev-parse") {
+            if joined.contains("/tmp/b") && joined.contains("branch --show-current") {
                 return "develop\n"
             }
             return ""
@@ -826,7 +826,7 @@ struct FixGitMismatchTests {
             if joined.contains("remote.origin.url") {
                 return "\n"
             }
-            if joined.contains("rev-parse") {
+            if joined.contains("branch --show-current") {
                 return "main\n"
             }
             return ""
@@ -876,7 +876,7 @@ struct FixGitMismatchTests {
             if joined.contains("remote.origin.url") {
                 return "https://github.com/hex/Helix.git\n"
             }
-            if joined.contains("rev-parse") {
+            if joined.contains("branch --show-current") {
                 return "main\n"
             }
             return ""
@@ -901,7 +901,7 @@ struct FixGitMismatchTests {
             if joined.contains("remote.origin.url") {
                 throw CLIError(exitCode: 1, stderr: "")
             }
-            if joined.contains("rev-parse") {
+            if joined.contains("branch --show-current") {
                 return "main\n"
             }
             return ""
@@ -929,7 +929,7 @@ struct FixGitMismatchTests {
             if joined.contains("/tmp/a/helix") && joined.contains("remote.origin.url") {
                 return "https://github.com/example/repo.git\n"
             }
-            if joined.contains("/tmp/a/helix") && joined.contains("rev-parse") {
+            if joined.contains("/tmp/a/helix") && joined.contains("branch --show-current") {
                 return "main\n"
             }
             return ""
@@ -971,7 +971,7 @@ struct FixGitMismatchTests {
             if joined.contains("remote.origin.url") {
                 return "https://github.com/example/repo.git\n"
             }
-            if joined.contains("rev-parse") {
+            if joined.contains("branch --show-current") {
                 return "main\n"
             }
             // Fail on git init (third call)
