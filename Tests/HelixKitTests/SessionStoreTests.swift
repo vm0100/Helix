@@ -568,6 +568,87 @@ struct ConflictResolutionTests {
     }
 }
 
+@Suite("SessionStore git repo status")
+struct GitRepoStatusTests {
+
+    @Test("Both endpoints have .git returns symmetric")
+    @MainActor
+    func bothHaveGit() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, _ in "" }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let status = await store.gitRepoStatus(for: session)
+
+        #expect(status == .symmetric)
+    }
+
+    @Test("Neither endpoint has .git returns symmetric")
+    @MainActor
+    func neitherHasGit() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 1, stderr: "")
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let status = await store.gitRepoStatus(for: session)
+
+        #expect(status == .symmetric)
+    }
+
+    @Test("Only alpha has .git returns alphaOnly")
+    @MainActor
+    func alphaOnly() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, args in
+            // alpha path is /tmp/a, beta path is /tmp/b
+            let joined = args.joined(separator: " ")
+            if joined.contains("/tmp/b") {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let status = await store.gitRepoStatus(for: session)
+
+        #expect(status == .alphaOnly)
+    }
+
+    @Test("Only beta has .git returns betaOnly")
+    @MainActor
+    func betaOnly() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, args in
+            let joined = args.joined(separator: " ")
+            if joined.contains("/tmp/a") {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let status = await store.gitRepoStatus(for: session)
+
+        #expect(status == .betaOnly)
+    }
+
+    @Test("Transport error returns unknown")
+    @MainActor
+    func transportError() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 255, stderr: "connection refused")
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let status = await store.gitRepoStatus(for: session)
+
+        #expect(status == .unknown)
+    }
+}
+
 func makeForwardSession(
     id: String,
     name: String?,

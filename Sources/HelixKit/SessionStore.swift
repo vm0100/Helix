@@ -3,6 +3,13 @@
 
 import Foundation
 
+public enum GitRepoStatus: Sendable, Equatable {
+    case symmetric   // Both or neither have .git
+    case alphaOnly   // Only alpha has .git
+    case betaOnly    // Only beta has .git
+    case unknown     // Transport error
+}
+
 public enum HealthStatus: Sendable {
     case healthy
     case active
@@ -224,8 +231,8 @@ public final class SessionStore {
         session: SyncSession,
         conflict: Conflict
     ) async -> (alpha: FileInfo?, beta: FileInfo?) {
-        let alphaURL = appendingConflictRoot(to: session.alpha.endpointURL, root: conflict.root)
-        let betaURL = appendingConflictRoot(to: session.beta.endpointURL, root: conflict.root)
+        let alphaURL = appendingSubpath(to: session.alpha.endpointURL, subpath: conflict.root)
+        let betaURL = appendingSubpath(to: session.beta.endpointURL, subpath: conflict.root)
 
         async let alphaStat = try? fileTransport.stat(endpoint: alphaURL)
         async let betaStat = try? fileTransport.stat(endpoint: betaURL)
@@ -238,8 +245,8 @@ public final class SessionStore {
         conflict: Conflict,
         winner: ConflictWinner
     ) async {
-        let alphaURL = appendingConflictRoot(to: session.alpha.endpointURL, root: conflict.root)
-        let betaURL = appendingConflictRoot(to: session.beta.endpointURL, root: conflict.root)
+        let alphaURL = appendingSubpath(to: session.alpha.endpointURL, subpath: conflict.root)
+        let betaURL = appendingSubpath(to: session.beta.endpointURL, subpath: conflict.root)
 
         let (winnerURL, loserURL) = switch winner {
         case .alpha: (alphaURL, betaURL)
@@ -281,14 +288,34 @@ public final class SessionStore {
         }
     }
 
-    private func appendingConflictRoot(to endpoint: EndpointURL, root: String) -> EndpointURL {
+    // MARK: - Git Repo Detection
+
+    public func gitRepoStatus(for session: SyncSession) async -> GitRepoStatus {
+        let alphaGit = appendingSubpath(to: session.alpha.endpointURL, subpath: ".git")
+        let betaGit = appendingSubpath(to: session.beta.endpointURL, subpath: ".git")
+
+        async let alphaResult = try? fileTransport.directoryExists(endpoint: alphaGit)
+        async let betaResult = try? fileTransport.directoryExists(endpoint: betaGit)
+
+        guard let alphaHas = await alphaResult, let betaHas = await betaResult else {
+            return .unknown
+        }
+
+        switch (alphaHas, betaHas) {
+        case (true, true), (false, false): return .symmetric
+        case (true, false): return .alphaOnly
+        case (false, true): return .betaOnly
+        }
+    }
+
+    private func appendingSubpath(to endpoint: EndpointURL, subpath: String) -> EndpointURL {
         switch endpoint {
         case .local(let path):
-            return .local(path: (path as NSString).appendingPathComponent(root))
+            return .local(path: (path as NSString).appendingPathComponent(subpath))
         case .ssh(let user, let host, let port, let path):
-            return .ssh(user: user, host: host, port: port, path: (path as NSString).appendingPathComponent(root))
+            return .ssh(user: user, host: host, port: port, path: (path as NSString).appendingPathComponent(subpath))
         case .docker(let container, let path):
-            return .docker(container: container, path: (path as NSString).appendingPathComponent(root))
+            return .docker(container: container, path: (path as NSString).appendingPathComponent(subpath))
         }
     }
 

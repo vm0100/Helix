@@ -10,12 +10,16 @@ struct SyncDetailView: View {
     @State private var showTerminateConfirmation = false
     @State private var showResetConfirmation = false
     @State private var showEditSheet = false
+    @State private var gitStatus: GitRepoStatus = .unknown
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
                 endpointsSection
+                if gitStatus == .alphaOnly || gitStatus == .betaOnly {
+                    gitMismatchBanner
+                }
                 configurationSection
                 if let conflicts = session.conflicts, !conflicts.isEmpty {
                     conflictsSection(conflicts)
@@ -50,6 +54,7 @@ struct SyncDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditSyncConfigView(session: session, store: store)
         }
+        .task(id: session.identifier) { gitStatus = await store.gitRepoStatus(for: session) }
     }
 
     // MARK: - Header
@@ -127,6 +132,61 @@ struct SyncDetailView: View {
                 EndpointCard(label: "Beta", endpoint: session.beta)
             }
         }
+    }
+
+    // MARK: - Git Mismatch Banner
+
+    private var gitMismatchBanner: some View {
+        let hasGitLabel = gitStatus == .alphaOnly ? "Alpha" : "Beta"
+        let missingGitLabel = gitStatus == .alphaOnly ? "Beta" : "Alpha"
+        let missingEndpoint = gitStatus == .alphaOnly ? session.beta : session.alpha
+        let missingPath = missingEndpoint.path ?? "<path>"
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Git Repository Mismatch")
+                    .font(.headline)
+            }
+
+            Text("\(hasGitLabel) has a .git directory, but \(missingGitLabel) does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Run these commands on the \(missingGitLabel) endpoint:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    let commands = """
+                    cd \(missingPath)
+                    git init
+                    git remote add origin <remote-url>
+                    git fetch origin
+                    git reset --mixed origin/<branch>
+                    """
+
+                    Text(commands)
+                        .font(.caption2)
+                        .monospaced()
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.background)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .padding(.top, 4)
+            } label: {
+                Label("How to fix", systemImage: "wrench")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(.orange.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Configuration
