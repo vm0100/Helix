@@ -1,5 +1,5 @@
 // ABOUTME: In-app console panel that displays log entries from ConsoleLog in real-time.
-// ABOUTME: Auto-scrolls to bottom, color-codes by level, and provides a clear button.
+// ABOUTME: Auto-scrolls to bottom, color-codes by level, dark Tokyo Night-inspired theme.
 
 import SwiftUI
 import HelixKit
@@ -17,20 +17,19 @@ struct ConsoleView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("Console")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color(hex: 0x7aa2f7))
                 Spacer()
                 Button("Clear") {
                     console.clear()
                 }
                 .controlSize(.small)
                 .buttonStyle(.borderless)
+                .foregroundStyle(Color(hex: 0x565f89))
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.bar)
-
-            Divider()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color(hex: 0x24283b))
 
             ScrollViewReader { proxy in
                 ScrollView {
@@ -38,12 +37,12 @@ struct ConsoleView: View {
                         ForEach(console.entries) { entry in
                             HStack(alignment: .top, spacing: 6) {
                                 Text(Self.timestampFormatter.string(from: entry.timestamp))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(Color(hex: 0x565f89))
                                 Text(entry.message)
                                     .foregroundStyle(color(for: entry.level))
                             }
                             .font(.system(size: 11, design: .monospaced))
-                            .padding(.horizontal, 8)
+                            .padding(.horizontal, 10)
                             .padding(.vertical, 1)
                             .id(entry.id)
                         }
@@ -57,14 +56,26 @@ struct ConsoleView: View {
                 }
             }
         }
-        .background(.background)
+        .background(Color(hex: 0x1a1b26))
     }
 
     private func color(for level: ConsoleLevel) -> Color {
         switch level {
-        case .info: .secondary
-        case .command: .blue
-        case .error: .red
+        case .info: Color(hex: 0xa9b1d6)
+        case .command: Color(hex: 0x7aa2f7)
+        case .error: Color(hex: 0xf7768e)
         }
+    }
+}
+
+// MARK: - Hex Color
+
+extension Color {
+    init(hex: UInt32) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
     }
 }
