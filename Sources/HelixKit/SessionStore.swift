@@ -37,6 +37,7 @@ public final class SessionStore {
     public private(set) var daemonAutoStart = false
     public private(set) var mutagenVersion: String?
     public private(set) var lastError: String?
+    public private(set) var refreshCount = 0
     public var pendingSessionSelection: String?
 
     private var provider: any SessionProvider
@@ -107,6 +108,11 @@ public final class SessionStore {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    public func manualRefresh() async {
+        await refresh()
+        refreshCount += 1
     }
 
     // MARK: - Session Creation

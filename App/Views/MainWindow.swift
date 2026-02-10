@@ -51,7 +51,7 @@ struct MainWindow: View {
                 }
 
                 Button {
-                    Task { await store.refresh() }
+                    Task { await store.manualRefresh() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
