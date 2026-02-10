@@ -22,12 +22,14 @@
 - **Edit sessions** -- Change sync mode, ignore rules, symlinks, compression, and watch settings on existing sessions
 - **Conflict resolution** -- Inspect per-file conflicts side by side, keep either side with one click across local, SSH, and Docker endpoints
 - **Endpoint support** -- Local paths, SSH remotes, and Docker containers with transport-aware file operations
-- **Console log** -- Toggleable panel showing timestamped CLI commands, results, and errors
+- **Git mismatch detection** -- Detects when a git repo exists on one sync endpoint but not the other, with automatic fix to initialize the missing side
+- **Console log** -- Dark-themed (Tokyo Night) panel with timestamped, color-coded CLI output and full multi-line text selection
 - **Keyboard shortcuts** -- `Cmd+N` new sync, `Cmd+Shift+N` new forward, `Cmd+R` refresh
 - **CLI preview** -- Every create/edit form shows the exact `mutagen` command before you run it, with a copy button
 - **Auto-update** -- Built-in Sparkle integration checks for updates from the menu bar
 - **Launch at login** -- Optional login item via SMAppService
 - **Configurable polling** -- Adjust refresh interval from 2 to 30 seconds
+- **Text size** -- Adjustable text size (System Default, Small, Medium, Large, Extra Large) in Settings
 
 ## Install
 

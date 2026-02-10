@@ -33,30 +33,35 @@ struct ConsoleView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(console.entries) { entry in
-                            (Text(Self.timestampFormatter.string(from: entry.timestamp))
-                                .foregroundStyle(Color(hex: 0x565f89))
-                             + Text(" ")
-                             + Text(entry.message)
-                                .foregroundStyle(color(for: entry.level)))
-                            .font(.system(size: 11, design: .monospaced))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 1)
-                            .id(entry.id)
-                        }
-                    }
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    consoleText
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Color.clear.frame(height: 0).id("bottom")
                 }
                 .onChange(of: console.entries.count) {
-                    if let last = console.entries.last {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
         }
         .background(Color(hex: 0x1a1b26))
+    }
+
+    private var consoleText: Text {
+        var result = Text("")
+        for (index, entry) in console.entries.enumerated() {
+            if index > 0 { result = result + Text("\n") }
+            result = result
+                + Text(Self.timestampFormatter.string(from: entry.timestamp))
+                    .foregroundStyle(Color(hex: 0x565f89))
+                + Text(" ")
+                + Text(entry.message)
+                    .foregroundStyle(color(for: entry.level))
+        }
+        return result
     }
 
     private func color(for level: ConsoleLevel) -> Color {
