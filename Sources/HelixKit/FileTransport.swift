@@ -132,6 +132,22 @@ public struct FileTransport: Sendable {
         }
     }
 
+    // MARK: - Run Command
+
+    public func run(on endpoint: EndpointURL, command: String) async throws -> String {
+        switch endpoint {
+        case .local(let path):
+            return try await execute("/bin/sh", ["-c", "cd '\(path)' && \(command)"])
+        case .ssh(let user, let host, let port, let path):
+            var args: [String] = []
+            if let port { args += ["-p", "\(port)"] }
+            args += [sshTarget(user: user, host: host), "cd '\(path)' && \(command)"]
+            return try await execute("/usr/bin/ssh", args)
+        case .docker(let container, let path):
+            return try await execute("/usr/bin/docker", ["exec", container, "sh", "-c", "cd '\(path)' && \(command)"])
+        }
+    }
+
     // MARK: - Private
 
     private func copyViaTemp(from source: EndpointURL, to destination: EndpointURL) async throws {

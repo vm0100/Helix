@@ -433,6 +433,87 @@ struct FileTransportDirectoryExistsTests {
     }
 }
 
+@Suite("FileTransport run commands")
+struct FileTransportRunTests {
+
+    @Test("local run uses sh -c with cd")
+    func runLocal() async throws {
+        let recorder = CommandRecorder(output: "Initialized empty Git repository")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.run(
+            on: .local(path: "/tmp/project"),
+            command: "git init"
+        )
+
+        #expect(result == "Initialized empty Git repository")
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/bin/sh")
+        #expect(cmd.arguments == ["-c", "cd '/tmp/project' && git init"])
+    }
+
+    @Test("ssh run uses ssh with cd")
+    func runSSH() async throws {
+        let recorder = CommandRecorder(output: "main")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.run(
+            on: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/project"),
+            command: "git rev-parse --abbrev-ref HEAD"
+        )
+
+        #expect(result == "main")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["deploy@server.com", "cd '/opt/project' && git rev-parse --abbrev-ref HEAD"])
+    }
+
+    @Test("ssh run with port includes -p flag")
+    func runSSHWithPort() async throws {
+        let recorder = CommandRecorder(output: "origin\thttps://github.com/example/repo.git")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.run(
+            on: .ssh(user: "root", host: "box", port: 2222, path: "/data/project"),
+            command: "git config --get remote.origin.url"
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["-p", "2222", "root@box", "cd '/data/project' && git config --get remote.origin.url"])
+    }
+
+    @Test("docker run uses docker exec sh -c")
+    func runDocker() async throws {
+        let recorder = CommandRecorder(output: "")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.run(
+            on: .docker(container: "myapp", path: "/app"),
+            command: "git init"
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "sh", "-c", "cd '/app' && git init"])
+    }
+
+    @Test("run propagates execute errors")
+    func runError() async throws {
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 128, stderr: "not a git repository")
+        }
+
+        await #expect(throws: CLIError.self) {
+            try await transport.run(
+                on: .local(path: "/tmp/project"),
+                command: "git config --get remote.origin.url"
+            )
+        }
+    }
+}
+
 // MARK: - Test Helpers
 
 struct RecordedCommand: Sendable {
