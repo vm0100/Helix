@@ -578,31 +578,36 @@ struct GitRepoStatusTests {
         let transport = FileTransport { _, _ in "" }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let status = await store.gitRepoStatus(for: session)
+        let check = await store.gitRepoStatus(for: session)
 
-        #expect(status == .symmetric)
+        #expect(check.status == .symmetric)
+        #expect(check.subpath.isEmpty)
     }
 
-    @Test("Neither endpoint has .git returns symmetric")
+    @Test("Neither root nor subdirectories have .git returns symmetric")
     @MainActor
     func neitherHasGit() async {
         let session = makeSyncSession(id: "sync_1", name: "test")
-        let transport = FileTransport { _, _ in
-            throw CLIError(exitCode: 1, stderr: "")
+        let transport = FileTransport { executable, args in
+            let joined = args.joined(separator: " ")
+            if executable == "/bin/test" {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            // find returns empty
+            return ""
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let status = await store.gitRepoStatus(for: session)
+        let check = await store.gitRepoStatus(for: session)
 
-        #expect(status == .symmetric)
+        #expect(check.status == .symmetric)
     }
 
-    @Test("Only alpha has .git returns alphaOnly")
+    @Test("Only alpha has .git at root returns alphaOnly with empty subpath")
     @MainActor
     func alphaOnly() async {
         let session = makeSyncSession(id: "sync_1", name: "test")
         let transport = FileTransport { _, args in
-            // alpha path is /tmp/a, beta path is /tmp/b
             let joined = args.joined(separator: " ")
             if joined.contains("/tmp/b") {
                 throw CLIError(exitCode: 1, stderr: "")
@@ -611,12 +616,13 @@ struct GitRepoStatusTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let status = await store.gitRepoStatus(for: session)
+        let check = await store.gitRepoStatus(for: session)
 
-        #expect(status == .alphaOnly)
+        #expect(check.status == .alphaOnly)
+        #expect(check.subpath.isEmpty)
     }
 
-    @Test("Only beta has .git returns betaOnly")
+    @Test("Only beta has .git at root returns betaOnly with empty subpath")
     @MainActor
     func betaOnly() async {
         let session = makeSyncSession(id: "sync_1", name: "test")
@@ -629,9 +635,10 @@ struct GitRepoStatusTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let status = await store.gitRepoStatus(for: session)
+        let check = await store.gitRepoStatus(for: session)
 
-        #expect(status == .betaOnly)
+        #expect(check.status == .betaOnly)
+        #expect(check.subpath.isEmpty)
     }
 
     @Test("Transport error returns unknown")
@@ -643,9 +650,82 @@ struct GitRepoStatusTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let status = await store.gitRepoStatus(for: session)
+        let check = await store.gitRepoStatus(for: session)
 
-        #expect(status == .unknown)
+        #expect(check.status == .unknown)
+    }
+
+    @Test("Subdirectory .git on alpha only returns alphaOnly with subpath")
+    @MainActor
+    func subdirectoryAlphaOnly() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { executable, args in
+            let joined = args.joined(separator: " ")
+            // Root .git checks: both return false
+            if executable == "/bin/test" {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            // find command via /bin/sh
+            if joined.contains("find .") {
+                if joined.contains("/tmp/a") {
+                    return "./helix/.git\n"
+                }
+                return ""
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let check = await store.gitRepoStatus(for: session)
+
+        #expect(check.status == .alphaOnly)
+        #expect(check.subpath == "helix")
+    }
+
+    @Test("Subdirectory .git on beta only returns betaOnly with subpath")
+    @MainActor
+    func subdirectoryBetaOnly() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { executable, args in
+            let joined = args.joined(separator: " ")
+            if executable == "/bin/test" {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            if joined.contains("find .") {
+                if joined.contains("/tmp/b") {
+                    return "./project/.git\n"
+                }
+                return ""
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let check = await store.gitRepoStatus(for: session)
+
+        #expect(check.status == .betaOnly)
+        #expect(check.subpath == "project")
+    }
+
+    @Test("Subdirectory .git on both sides returns symmetric")
+    @MainActor
+    func subdirectoryBothHaveGit() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { executable, args in
+            let joined = args.joined(separator: " ")
+            if executable == "/bin/test" {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            if joined.contains("find .") {
+                return "./helix/.git\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let check = await store.gitRepoStatus(for: session)
+
+        #expect(check.status == .symmetric)
     }
 }
 
@@ -671,7 +751,7 @@ struct FixGitMismatchTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+        let success = await store.fixGitMismatch(session: session, gitCheck: GitRepoCheck(status: .alphaOnly))
 
         #expect(success == true)
         #expect(store.lastError == nil)
@@ -724,7 +804,7 @@ struct FixGitMismatchTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let success = await store.fixGitMismatch(session: session, gitStatus: .betaOnly)
+        let success = await store.fixGitMismatch(session: session, gitCheck: GitRepoCheck(status: .betaOnly))
 
         #expect(success == true)
 
@@ -753,7 +833,7 @@ struct FixGitMismatchTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+        let success = await store.fixGitMismatch(session: session, gitCheck: GitRepoCheck(status: .alphaOnly))
 
         #expect(success == false)
         #expect(store.lastError != nil)
@@ -769,7 +849,7 @@ struct FixGitMismatchTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+        let success = await store.fixGitMismatch(session: session, gitCheck: GitRepoCheck(status: .alphaOnly))
 
         #expect(success == false)
         #expect(store.lastError != nil)
@@ -782,9 +862,47 @@ struct FixGitMismatchTests {
         let session = makeSyncSession(id: "sync_1", name: "test")
         let store = SessionStore(provider: FakeProvider())
 
-        let success = await store.fixGitMismatch(session: session, gitStatus: .symmetric)
+        let success = await store.fixGitMismatch(session: session, gitCheck: GitRepoCheck(status: .symmetric))
 
         #expect(success == false)
+    }
+
+    @Test("Uses subpath when fixing subdirectory mismatch")
+    @MainActor
+    func fixWithSubpath() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let log = CallLog()
+        let transport = FileTransport { executable, args in
+            log.record(executable: executable, arguments: args)
+
+            let joined = args.joined(separator: " ")
+            if joined.contains("/tmp/a/helix") && joined.contains("remote.origin.url") {
+                return "https://github.com/example/repo.git\n"
+            }
+            if joined.contains("/tmp/a/helix") && joined.contains("rev-parse") {
+                return "main\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let success = await store.fixGitMismatch(
+            session: session,
+            gitCheck: GitRepoCheck(status: .alphaOnly, subpath: "helix")
+        )
+
+        #expect(success == true)
+
+        let commands = log.entries
+        #expect(commands.count == 6)
+
+        // Read remote from alpha/helix
+        let readRemote = commands[0].arguments.joined(separator: " ")
+        #expect(readRemote.contains("/tmp/a/helix"))
+
+        // Git init on beta/helix
+        let gitInit = commands[2].arguments.joined(separator: " ")
+        #expect(gitInit.contains("/tmp/b/helix") && gitInit.contains("git init"))
     }
 
     @Test("Git init failure on target sets lastError")
@@ -814,7 +932,7 @@ struct FixGitMismatchTests {
         }
         let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
 
-        let success = await store.fixGitMismatch(session: session, gitStatus: .alphaOnly)
+        let success = await store.fixGitMismatch(session: session, gitCheck: GitRepoCheck(status: .alphaOnly))
 
         #expect(success == false)
         #expect(store.lastError != nil)

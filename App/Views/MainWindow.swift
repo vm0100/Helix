@@ -250,11 +250,11 @@ private struct SyncListRow: View {
     let session: SyncSession
     let store: SessionStore
     let isSelected: Bool
-    @State private var gitStatus: GitRepoStatus = .unknown
+    @State private var gitCheck: GitRepoCheck = GitRepoCheck(status: .unknown)
     @AppStorage("dismissedGitMismatches") private var dismissedJSON = "[]"
 
     private var hasVisibleMismatch: Bool {
-        guard gitStatus == .alphaOnly || gitStatus == .betaOnly else { return false }
+        guard gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly else { return false }
         let dismissed = (try? JSONDecoder().decode(Set<String>.self, from: Data(dismissedJSON.utf8))) ?? []
         return !dismissed.contains(session.identifier)
     }
@@ -303,7 +303,7 @@ private struct SyncListRow: View {
                 .padding(.horizontal, 4)
         )
         .task(id: session.identifier) {
-            gitStatus = await store.gitRepoStatus(for: session)
+            gitCheck = await store.gitRepoStatus(for: session)
         }
     }
 }

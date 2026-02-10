@@ -10,7 +10,7 @@ struct SyncDetailView: View {
     @State private var showTerminateConfirmation = false
     @State private var showResetConfirmation = false
     @State private var showEditSheet = false
-    @State private var gitStatus: GitRepoStatus = .unknown
+    @State private var gitCheck: GitRepoCheck = GitRepoCheck(status: .unknown)
     @State private var isFixingGit = false
     @State private var showManualFix = false
     @AppStorage("dismissedGitMismatches") private var dismissedJSON = "[]"
@@ -20,7 +20,7 @@ struct SyncDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
                 endpointsSection
-                if (gitStatus == .alphaOnly || gitStatus == .betaOnly) && !isGitMismatchDismissed {
+                if (gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly) && !isGitMismatchDismissed {
                     gitMismatchBanner
                 }
                 configurationSection
@@ -57,7 +57,7 @@ struct SyncDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditSyncConfigView(session: session, store: store)
         }
-        .task(id: session.identifier) { gitStatus = await store.gitRepoStatus(for: session) }
+        .task(id: session.identifier) { gitCheck = await store.gitRepoStatus(for: session) }
     }
 
     // MARK: - Header
@@ -140,16 +140,18 @@ struct SyncDetailView: View {
     // MARK: - Git Mismatch Banner
 
     private var gitMismatchBanner: some View {
-        let hasGitLabel = gitStatus == .alphaOnly ? "Alpha" : "Beta"
-        let missingGitLabel = gitStatus == .alphaOnly ? "Beta" : "Alpha"
-        let missingEndpoint = gitStatus == .alphaOnly ? session.beta : session.alpha
-        let missingPath = missingEndpoint.path ?? "<path>"
+        let hasGitLabel = gitCheck.status == .alphaOnly ? "Alpha" : "Beta"
+        let missingGitLabel = gitCheck.status == .alphaOnly ? "Beta" : "Alpha"
+        let missingEndpoint = gitCheck.status == .alphaOnly ? session.beta : session.alpha
+        let basePath = missingEndpoint.path ?? "<path>"
+        let missingPath = gitCheck.subpath.isEmpty ? basePath : (basePath as NSString).appendingPathComponent(gitCheck.subpath)
+        let subpathNote = gitCheck.subpath.isEmpty ? "" : " (in \(gitCheck.subpath)/)"
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Git Repository Mismatch")
+                Text("Git Repository Mismatch\(subpathNote)")
                     .font(.headline)
                 Spacer()
                 Button("Dismiss") { dismissGitMismatch() }
@@ -165,9 +167,9 @@ struct SyncDetailView: View {
             Button {
                 Task {
                     isFixingGit = true
-                    let success = await store.fixGitMismatch(session: session, gitStatus: gitStatus)
+                    let success = await store.fixGitMismatch(session: session, gitCheck: gitCheck)
                     if success {
-                        gitStatus = await store.gitRepoStatus(for: session)
+                        gitCheck = await store.gitRepoStatus(for: session)
                     }
                     isFixingGit = false
                 }

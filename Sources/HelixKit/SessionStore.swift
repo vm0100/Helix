@@ -10,6 +10,16 @@ public enum GitRepoStatus: Sendable, Equatable {
     case unknown     // Transport error
 }
 
+public struct GitRepoCheck: Sendable, Equatable {
+    public let status: GitRepoStatus
+    public let subpath: String  // Relative path from sync root ("" for root)
+
+    public init(status: GitRepoStatus, subpath: String = "") {
+        self.status = status
+        self.subpath = subpath
+    }
+}
+
 public enum HealthStatus: Sendable {
     case healthy
     case active
@@ -290,7 +300,7 @@ public final class SessionStore {
 
     // MARK: - Git Repo Detection
 
-    public func gitRepoStatus(for session: SyncSession) async -> GitRepoStatus {
+    public func gitRepoStatus(for session: SyncSession) async -> GitRepoCheck {
         let alphaGit = appendingSubpath(to: session.alpha.endpointURL, subpath: ".git")
         let betaGit = appendingSubpath(to: session.beta.endpointURL, subpath: ".git")
 
@@ -298,27 +308,72 @@ public final class SessionStore {
         async let betaResult = try? fileTransport.directoryExists(endpoint: betaGit)
 
         guard let alphaHas = await alphaResult, let betaHas = await betaResult else {
-            return .unknown
+            return GitRepoCheck(status: .unknown)
         }
 
         switch (alphaHas, betaHas) {
-        case (true, true), (false, false): return .symmetric
-        case (true, false): return .alphaOnly
-        case (false, true): return .betaOnly
+        case (true, true): return GitRepoCheck(status: .symmetric)
+        case (true, false): return GitRepoCheck(status: .alphaOnly)
+        case (false, true): return GitRepoCheck(status: .betaOnly)
+        case (false, false): return await scanSubdirectoriesForGit(session: session)
         }
+    }
+
+    private func scanSubdirectoriesForGit(session: SyncSession) async -> GitRepoCheck {
+        async let alphaOutput = try? fileTransport.run(
+            on: session.alpha.endpointURL,
+            command: "find . -maxdepth 2 -name .git -type d 2>/dev/null"
+        )
+        async let betaOutput = try? fileTransport.run(
+            on: session.beta.endpointURL,
+            command: "find . -maxdepth 2 -name .git -type d 2>/dev/null"
+        )
+
+        let alphaPaths = parseGitDirs(await alphaOutput ?? "")
+        let betaPaths = parseGitDirs(await betaOutput ?? "")
+
+        let alphaOnly = alphaPaths.subtracting(betaPaths).sorted()
+        let betaOnly = betaPaths.subtracting(alphaPaths).sorted()
+
+        if let first = alphaOnly.first {
+            return GitRepoCheck(status: .alphaOnly, subpath: first)
+        }
+        if let first = betaOnly.first {
+            return GitRepoCheck(status: .betaOnly, subpath: first)
+        }
+        return GitRepoCheck(status: .symmetric)
+    }
+
+    private func parseGitDirs(_ output: String) -> Set<String> {
+        var result = Set<String>()
+        for line in output.split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasSuffix("/.git") else { continue }
+            let parent = String(trimmed.dropLast(5))
+            if parent == "." {
+                result.insert("")
+            } else if parent.hasPrefix("./") {
+                result.insert(String(parent.dropFirst(2)))
+            } else {
+                result.insert(parent)
+            }
+        }
+        return result
     }
 
     // MARK: - Git Auto-Fix
 
-    public func fixGitMismatch(session: SyncSession, gitStatus: GitRepoStatus) async -> Bool {
-        guard gitStatus == .alphaOnly || gitStatus == .betaOnly else { return false }
+    public func fixGitMismatch(session: SyncSession, gitCheck: GitRepoCheck) async -> Bool {
+        guard gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly else { return false }
 
-        let sourceEndpoint = gitStatus == .alphaOnly
+        let sourceBase = gitCheck.status == .alphaOnly
             ? session.alpha.endpointURL
             : session.beta.endpointURL
-        let targetEndpoint = gitStatus == .alphaOnly
+        let targetBase = gitCheck.status == .alphaOnly
             ? session.beta.endpointURL
             : session.alpha.endpointURL
+        let sourceEndpoint = gitCheck.subpath.isEmpty ? sourceBase : appendingSubpath(to: sourceBase, subpath: gitCheck.subpath)
+        let targetEndpoint = gitCheck.subpath.isEmpty ? targetBase : appendingSubpath(to: targetBase, subpath: gitCheck.subpath)
 
         let remoteURL: String
         let branch: String
