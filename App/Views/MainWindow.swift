@@ -20,7 +20,7 @@ struct MainWindow: View {
     @State private var searchText = ""
     @State private var showCreateSync = false
     @State private var showCreateForward = false
-    @State private var showConsole = false
+    @AppStorage("showConsole") private var showConsole = false
 
     var body: some View {
         VSplitView {
