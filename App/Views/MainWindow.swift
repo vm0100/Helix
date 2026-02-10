@@ -51,6 +51,13 @@ struct MainWindow: View {
                 }
 
                 Button {
+                    Task { await store.refresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh Sessions")
+
+                Button {
                     showConsole.toggle()
                 } label: {
                     Image(systemName: "terminal")
