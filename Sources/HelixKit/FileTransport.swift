@@ -104,7 +104,7 @@ public struct FileTransport: Sendable {
             if let port {
                 args += ["-p", "\(port)"]
             }
-            args += [sshTarget(user: user, host: host), "rm -rf '\(path)'"]
+            args += [sshTarget(user: user, host: host), "rm -rf \(shellQuoted(path))"]
             _ = try await execute("/usr/bin/ssh", args)
         case .docker(let container, let path):
             _ = try await execute("/usr/bin/docker", ["exec", container, "rm", "-rf", path])
@@ -121,7 +121,7 @@ public struct FileTransport: Sendable {
             case .ssh(let user, let host, let port, let path):
                 var args: [String] = []
                 if let port { args += ["-p", "\(port)"] }
-                args += [sshTarget(user: user, host: host), "test -d '\(path)'"]
+                args += [sshTarget(user: user, host: host), "test -d \(shellQuoted(path))"]
                 _ = try await execute("/usr/bin/ssh", args)
             case .docker(let container, let path):
                 _ = try await execute("/usr/bin/docker", ["exec", container, "test", "-d", path])
@@ -141,7 +141,7 @@ public struct FileTransport: Sendable {
         case .ssh(let user, let host, let port, let path):
             var args: [String] = []
             if let port { args += ["-p", "\(port)"] }
-            args += [sshTarget(user: user, host: host), "cd '\(path)' && \(command)"]
+            args += [sshTarget(user: user, host: host), "cd \(shellQuoted(path)) && \(command)"]
             return try await execute("/usr/bin/ssh", args)
         case .docker(let container, let path):
             return try await execute("/usr/bin/docker", ["exec", container, "sh", "-c", "cd '\(path)' && \(command)"])
@@ -175,6 +175,19 @@ public struct FileTransport: Sendable {
         }
         args += [from, to]
         return args
+    }
+
+    /// Quotes a path for remote shell execution, handling tilde expansion.
+    /// `~/foo` becomes `"$HOME/foo"` (double quotes allow $HOME expansion).
+    /// Other paths use single quotes to protect special characters.
+    private func shellQuoted(_ path: String) -> String {
+        if path.hasPrefix("~/") {
+            return "\"$HOME/\(path.dropFirst(2))\""
+        }
+        if path == "~" {
+            return "\"$HOME\""
+        }
+        return "'\(path)'"
     }
 
     private func sshTarget(user: String?, host: String) -> String {

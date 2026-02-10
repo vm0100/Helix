@@ -321,6 +321,63 @@ struct FileTransportRemoveTests {
     }
 }
 
+@Suite("FileTransport SSH tilde expansion")
+struct FileTransportTildeTests {
+
+    @Test("remove ssh with tilde uses $HOME instead of literal ~")
+    func removeTilde() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.remove(
+            endpoint: .ssh(user: "hex", host: "server", port: nil, path: "~/.claude-sessions/teamcity/logs")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["hex@server", "rm -rf \"$HOME/.claude-sessions/teamcity/logs\""])
+    }
+
+    @Test("directoryExists ssh with tilde uses $HOME")
+    func directoryExistsTilde() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.directoryExists(
+            endpoint: .ssh(user: "hex", host: "server", port: nil, path: "~/.claude-sessions/.git")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["hex@server", "test -d \"$HOME/.claude-sessions/.git\""])
+    }
+
+    @Test("run ssh with tilde uses $HOME in cd")
+    func runTilde() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.run(
+            on: .ssh(user: "hex", host: "server", port: nil, path: "~/.claude-sessions"),
+            command: "git init"
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["hex@server", "cd \"$HOME/.claude-sessions\" && git init"])
+    }
+
+    @Test("absolute paths still use single quotes")
+    func absolutePathStillSingleQuoted() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        try await transport.remove(
+            endpoint: .ssh(user: "deploy", host: "server", port: nil, path: "/opt/dir")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["deploy@server", "rm -rf '/opt/dir'"])
+    }
+}
+
 @Suite("FileTransport error propagation")
 struct FileTransportErrorTests {
 
