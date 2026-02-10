@@ -195,7 +195,13 @@ struct SyncDetailView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(isFixingGit)
+            .disabled(isFixingGit || sourceRemoteURL == nil)
+
+            if sourceRemoteURL == nil {
+                Text("No git remote configured on the \(hasGitLabel) endpoint. Add a remote first, or use the manual commands below.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             DisclosureGroup(isExpanded: $showManualFix) {
                 VStack(alignment: .leading, spacing: 4) {
