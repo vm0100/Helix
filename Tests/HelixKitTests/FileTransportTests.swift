@@ -350,6 +350,89 @@ struct FileTransportErrorTests {
     }
 }
 
+@Suite("FileTransport directoryExists commands")
+struct FileTransportDirectoryExistsTests {
+
+    @Test("local directory exists runs test -d and returns true")
+    func localExists() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.directoryExists(endpoint: .local(path: "/tmp/project/.git"))
+
+        #expect(result == true)
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/bin/test")
+        #expect(cmd.arguments == ["-d", "/tmp/project/.git"])
+    }
+
+    @Test("local directory missing (exit 1) returns false")
+    func localMissing() async throws {
+        let recorder = CommandRecorder(error: CLIError(exitCode: 1, stderr: ""))
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.directoryExists(endpoint: .local(path: "/tmp/project/.git"))
+
+        #expect(result == false)
+    }
+
+    @Test("ssh directory exists runs ssh test -d")
+    func sshExists() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.directoryExists(
+            endpoint: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/project/.git")
+        )
+
+        #expect(result == true)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["deploy@server.com", "test -d '/opt/project/.git'"])
+    }
+
+    @Test("ssh with port includes -p flag")
+    func sshWithPort() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.directoryExists(
+            endpoint: .ssh(user: "root", host: "box", port: 2222, path: "/data/.git")
+        )
+
+        #expect(result == true)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["-p", "2222", "root@box", "test -d '/data/.git'"])
+    }
+
+    @Test("docker directory exists runs docker exec test -d")
+    func dockerExists() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.directoryExists(
+            endpoint: .docker(container: "myapp", path: "/app/.git")
+        )
+
+        #expect(result == true)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "test", "-d", "/app/.git"])
+    }
+
+    @Test("transport error (exit 255) rethrows instead of returning false")
+    func transportError() async throws {
+        let recorder = CommandRecorder(error: CLIError(exitCode: 255, stderr: "connection refused"))
+        let transport = FileTransport(execute: recorder.execute)
+
+        await #expect(throws: CLIError.self) {
+            try await transport.directoryExists(endpoint: .local(path: "/tmp/.git"))
+        }
+    }
+}
+
 // MARK: - Test Helpers
 
 struct RecordedCommand: Sendable {
@@ -361,9 +444,11 @@ final class CommandRecorder: @unchecked Sendable {
     private var _commands: [RecordedCommand] = []
     private let lock = NSLock()
     private let output: String
+    private let error: CLIError?
 
-    init(output: String = "") {
+    init(output: String = "", error: CLIError? = nil) {
         self.output = output
+        self.error = error
     }
 
     var commands: [RecordedCommand] {
@@ -376,6 +461,7 @@ final class CommandRecorder: @unchecked Sendable {
         lock.lock()
         _commands.append(RecordedCommand(executable: executable, arguments: arguments))
         lock.unlock()
+        if let error { throw error }
         return output
     }
 }

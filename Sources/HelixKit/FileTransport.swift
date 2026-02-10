@@ -111,6 +111,27 @@ public struct FileTransport: Sendable {
         }
     }
 
+    // MARK: - Directory Exists
+
+    public func directoryExists(endpoint: EndpointURL) async throws -> Bool {
+        do {
+            switch endpoint {
+            case .local(let path):
+                _ = try await execute("/bin/test", ["-d", path])
+            case .ssh(let user, let host, let port, let path):
+                var args: [String] = []
+                if let port { args += ["-p", "\(port)"] }
+                args += [sshTarget(user: user, host: host), "test -d '\(path)'"]
+                _ = try await execute("/usr/bin/ssh", args)
+            case .docker(let container, let path):
+                _ = try await execute("/usr/bin/docker", ["exec", container, "test", "-d", path])
+            }
+            return true
+        } catch let error as CLIError where error.exitCode == 1 {
+            return false
+        }
+    }
+
     // MARK: - Private
 
     private func copyViaTemp(from source: EndpointURL, to destination: EndpointURL) async throws {
