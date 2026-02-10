@@ -12,6 +12,7 @@ struct SyncDetailView: View {
     @State private var showEditSheet = false
     @State private var gitStatus: GitRepoStatus = .unknown
     @State private var isFixingGit = false
+    @State private var showManualFix = false
 
     var body: some View {
         ScrollView {
@@ -179,7 +180,7 @@ struct SyncDetailView: View {
             .controlSize(.small)
             .disabled(isFixingGit)
 
-            DisclosureGroup {
+            DisclosureGroup(isExpanded: $showManualFix) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Run these commands on the \(missingGitLabel) endpoint:")
                         .font(.caption)
@@ -204,9 +205,11 @@ struct SyncDetailView: View {
                 }
                 .padding(.top, 4)
             } label: {
-                Label("How to fix", systemImage: "wrench")
+                Label("How to fix manually", systemImage: "wrench")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showManualFix.toggle() }
             }
         }
         .padding()
