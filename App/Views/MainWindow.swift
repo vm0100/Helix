@@ -275,12 +275,14 @@ private struct SyncListRow: View {
                     .fontWeight(isSelected ? .semibold : .regular)
                 HStack(spacing: 4) {
                     Text(session.alpha.protocol_)
+                        .foregroundStyle(isSelected ? .white.opacity(0.7) : .blue)
                     Image(systemName: (session.mode ?? "two-way-safe").hasPrefix("one-way") ? "arrow.right" : "arrow.left.arrow.right")
                         .font(.caption2)
+                        .foregroundStyle(isSelected ? .white.opacity(0.5) : .secondary)
                     Text(session.beta.protocol_)
+                        .foregroundStyle(isSelected ? .white.opacity(0.7) : .purple)
                 }
                 .font(.caption)
-                .foregroundStyle(isSelected ? .white.opacity(0.7) : .secondary)
             }
 
             Spacer()

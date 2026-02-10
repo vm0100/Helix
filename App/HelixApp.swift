@@ -35,6 +35,7 @@ struct HelixApp: App {
 
         Window("Helix", id: "main") {
             MainWindow(store: store)
+                .textSizeModifier()
         }
         .defaultSize(width: 800, height: 560)
         .commands {
@@ -49,6 +50,36 @@ struct HelixApp: App {
                 CheckForUpdatesButton(updater: updaterController.updater)
             }
         }
+    }
+}
+
+// MARK: - Text Size
+
+struct TextSizeModifier: ViewModifier {
+    @AppStorage("textSize") private var textSize = "system"
+
+    func body(content: Content) -> some View {
+        if let size = dynamicTypeSize {
+            content.dynamicTypeSize(size)
+        } else {
+            content
+        }
+    }
+
+    private var dynamicTypeSize: DynamicTypeSize? {
+        switch textSize {
+        case "small": .small
+        case "medium": .medium
+        case "large": .large
+        case "xLarge": .xLarge
+        default: nil
+        }
+    }
+}
+
+extension View {
+    func textSizeModifier() -> some View {
+        modifier(TextSizeModifier())
     }
 }
 
@@ -76,7 +107,7 @@ struct SessionCommands: Commands {
             Divider()
 
             Button("Refresh Sessions") {
-                Task { await store.refresh() }
+                Task { await store.manualRefresh() }
             }
             .keyboardShortcut("r", modifiers: .command)
         }

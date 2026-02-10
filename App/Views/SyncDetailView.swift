@@ -140,8 +140,8 @@ struct SyncDetailView: View {
                 .font(.headline)
 
             HStack(alignment: .top, spacing: 12) {
-                EndpointCard(label: "Alpha", endpoint: session.alpha)
-                EndpointCard(label: "Beta", endpoint: session.beta)
+                EndpointCard(label: "Alpha", color: .blue, endpoint: session.alpha)
+                EndpointCard(label: "Beta", color: .purple, endpoint: session.beta)
             }
         }
     }
@@ -150,7 +150,9 @@ struct SyncDetailView: View {
 
     private var gitMismatchBanner: some View {
         let hasGitLabel = gitCheck.status == .alphaOnly ? "Alpha" : "Beta"
+        let hasGitColor: Color = gitCheck.status == .alphaOnly ? .blue : .purple
         let missingGitLabel = gitCheck.status == .alphaOnly ? "Beta" : "Alpha"
+        let missingGitColor: Color = gitCheck.status == .alphaOnly ? .purple : .blue
         let missingEndpoint = gitCheck.status == .alphaOnly ? session.beta : session.alpha
         let basePath = missingEndpoint.path ?? "<path>"
         let missingPath = gitCheck.subpath.isEmpty ? basePath : (basePath as NSString).appendingPathComponent(gitCheck.subpath)
@@ -169,7 +171,10 @@ struct SyncDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("\(hasGitLabel) has a .git directory, but \(missingGitLabel) does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo.")
+            (Text(hasGitLabel).foregroundStyle(hasGitColor).fontWeight(.semibold)
+             + Text(" has a .git directory, but ")
+             + Text(missingGitLabel).foregroundStyle(missingGitColor).fontWeight(.semibold)
+             + Text(" does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -198,14 +203,22 @@ struct SyncDetailView: View {
             .disabled(isFixingGit || sourceRemoteURL == nil)
 
             if sourceRemoteURL == nil {
-                Label("No git remote configured on the \(hasGitLabel) endpoint. Add a remote first, or use the manual commands below.", systemImage: "info.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                Label {
+                    Text("No git remote configured on the ")
+                    + Text(hasGitLabel).foregroundStyle(hasGitColor).fontWeight(.semibold)
+                    + Text(" endpoint. Add a remote first, or use the manual commands below.")
+                } icon: {
+                    Image(systemName: "info.circle.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(.orange)
             }
 
             DisclosureGroup(isExpanded: $showManualFix) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Run these commands on the \(missingGitLabel) endpoint:")
+                    (Text("Run these commands on the ")
+                     + Text(missingGitLabel).foregroundStyle(missingGitColor).fontWeight(.semibold)
+                     + Text(" endpoint:"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -416,15 +429,19 @@ struct SyncDetailView: View {
 
 private struct EndpointCard: View {
     let label: String
+    let color: Color
     let endpoint: Endpoint
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(label)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Circle().fill(color).frame(width: 6, height: 6)
+                    Text(label)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(color)
+                }
                 Spacer()
                 Circle()
                     .fill(endpoint.connected == true ? .green : .red)
