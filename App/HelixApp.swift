@@ -29,6 +29,7 @@ struct HelixApp: App {
                 .frame(width: 320, height: 400)
         } label: {
             MenuBarIcon(health: store.overallHealth)
+                .task { store.startPolling() }
         }
         .menuBarExtraStyle(.window)
 

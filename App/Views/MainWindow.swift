@@ -71,9 +71,7 @@ struct MainWindow: View {
         .focusedSceneValue(\.showCreateSync, $showCreateSync)
         .focusedSceneValue(\.showCreateForward, $showCreateForward)
         .task {
-            if store.syncSessions.isEmpty {
-                store.startPolling()
-            }
+            await store.refresh()
         }
         .onChange(of: store.syncSessions) {
             guard let selected = selectedSyncSession else { return }

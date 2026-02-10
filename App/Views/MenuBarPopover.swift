@@ -25,7 +25,7 @@ struct MenuBarPopover: View {
             footer
         }
         .task {
-            store.startPolling()
+            await store.refresh()
         }
     }
 
