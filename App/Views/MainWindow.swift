@@ -151,7 +151,7 @@ struct MainWindow: View {
             if !filteredSyncSessions.isEmpty {
                 Section("Sync Sessions") {
                     ForEach(filteredSyncSessions) { session in
-                        SyncListRow(session: session, isSelected: selectedSyncSession?.id == session.id)
+                        SyncListRow(session: session, store: store, isSelected: selectedSyncSession?.id == session.id)
                             .onTapGesture {
                                 selectedSyncSession = session
                                 selectedForwardSession = nil
@@ -248,7 +248,16 @@ struct MainWindow: View {
 
 private struct SyncListRow: View {
     let session: SyncSession
+    let store: SessionStore
     let isSelected: Bool
+    @State private var gitStatus: GitRepoStatus = .unknown
+    @AppStorage("dismissedGitMismatches") private var dismissedJSON = "[]"
+
+    private var hasVisibleMismatch: Bool {
+        guard gitStatus == .alphaOnly || gitStatus == .betaOnly else { return false }
+        let dismissed = (try? JSONDecoder().decode(Set<String>.self, from: Data(dismissedJSON.utf8))) ?? []
+        return !dismissed.contains(session.identifier)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -269,6 +278,13 @@ private struct SyncListRow: View {
 
             Spacer()
 
+            if hasVisibleMismatch {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(isSelected ? .white.opacity(0.7) : .orange)
+                    .help("Git repository mismatch")
+            }
+
             if let conflicts = session.conflicts, !conflicts.isEmpty {
                 Text("\(conflicts.count)")
                     .font(.caption)
@@ -286,6 +302,9 @@ private struct SyncListRow: View {
                 .fill(isSelected ? Color.accentColor : Color.clear)
                 .padding(.horizontal, 4)
         )
+        .task(id: session.identifier) {
+            gitStatus = await store.gitRepoStatus(for: session)
+        }
     }
 }
 

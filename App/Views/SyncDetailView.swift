@@ -13,13 +13,14 @@ struct SyncDetailView: View {
     @State private var gitStatus: GitRepoStatus = .unknown
     @State private var isFixingGit = false
     @State private var showManualFix = false
+    @AppStorage("dismissedGitMismatches") private var dismissedJSON = "[]"
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
                 endpointsSection
-                if gitStatus == .alphaOnly || gitStatus == .betaOnly {
+                if (gitStatus == .alphaOnly || gitStatus == .betaOnly) && !isGitMismatchDismissed {
                     gitMismatchBanner
                 }
                 configurationSection
@@ -150,6 +151,11 @@ struct SyncDetailView: View {
                     .foregroundStyle(.orange)
                 Text("Git Repository Mismatch")
                     .font(.headline)
+                Spacer()
+                Button("Dismiss") { dismissGitMismatch() }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Text("\(hasGitLabel) has a .git directory, but \(missingGitLabel) does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo.")
@@ -215,6 +221,19 @@ struct SyncDetailView: View {
         .padding()
         .background(.orange.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var isGitMismatchDismissed: Bool {
+        let dismissed = (try? JSONDecoder().decode(Set<String>.self, from: Data(dismissedJSON.utf8))) ?? []
+        return dismissed.contains(session.identifier)
+    }
+
+    private func dismissGitMismatch() {
+        var dismissed = (try? JSONDecoder().decode(Set<String>.self, from: Data(dismissedJSON.utf8))) ?? []
+        dismissed.insert(session.identifier)
+        if let data = try? JSONEncoder().encode(dismissed) {
+            dismissedJSON = String(data: data, encoding: .utf8) ?? "[]"
+        }
     }
 
     // MARK: - Configuration
