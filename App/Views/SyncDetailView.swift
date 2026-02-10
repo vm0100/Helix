@@ -11,6 +11,7 @@ struct SyncDetailView: View {
     @State private var showResetConfirmation = false
     @State private var showEditSheet = false
     @State private var gitStatus: GitRepoStatus = .unknown
+    @State private var isFixingGit = false
 
     var body: some View {
         ScrollView {
@@ -153,6 +154,30 @@ struct SyncDetailView: View {
             Text("\(hasGitLabel) has a .git directory, but \(missingGitLabel) does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Button {
+                Task {
+                    isFixingGit = true
+                    let success = await store.fixGitMismatch(session: session, gitStatus: gitStatus)
+                    if success {
+                        gitStatus = await store.gitRepoStatus(for: session)
+                    }
+                    isFixingGit = false
+                }
+            } label: {
+                if isFixingGit {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Initializing git...")
+                    }
+                } else {
+                    Label("Fix Automatically", systemImage: "wand.and.stars")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(isFixingGit)
 
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 4) {
