@@ -335,10 +335,13 @@ final class RecordingProvider: SessionProvider, @unchecked Sendable {
     private var _calls: [String] = []
     private let lock = NSLock()
     private let syncSessions: [SyncSession]
+    private let resolvedSyncSessions: [SyncSession]?
+    private var _flushed = false
     private let failOn: String?
 
-    init(syncSessions: [SyncSession] = [], failOn: String? = nil) {
+    init(syncSessions: [SyncSession] = [], resolvedSyncSessions: [SyncSession]? = nil, failOn: String? = nil) {
         self.syncSessions = syncSessions
+        self.resolvedSyncSessions = resolvedSyncSessions
         self.failOn = failOn
     }
 
@@ -358,7 +361,15 @@ final class RecordingProvider: SessionProvider, @unchecked Sendable {
         }
     }
 
-    func syncList() async throws -> [SyncSession] { syncSessions }
+    func syncList() async throws -> [SyncSession] {
+        lock.lock()
+        let flushed = _flushed
+        lock.unlock()
+        if flushed, let resolved = resolvedSyncSessions {
+            return resolved
+        }
+        return syncSessions
+    }
     func forwardList() async throws -> [ForwardSession] { [] }
     func daemonRunning() async throws -> Bool { true }
     func version() async throws -> String { "0.18.1" }
@@ -366,7 +377,12 @@ final class RecordingProvider: SessionProvider, @unchecked Sendable {
     func forwardCreate(arguments: [String]) async throws {}
     func syncPause(_ identifier: String) async throws {}
     func syncResume(_ identifier: String) async throws {}
-    func syncFlush(_ identifier: String) async throws { try record("syncFlush:\(identifier)") }
+    func syncFlush(_ identifier: String) async throws {
+        try record("syncFlush:\(identifier)")
+        lock.lock()
+        _flushed = true
+        lock.unlock()
+    }
     func syncReset(_ identifier: String) async throws {}
     func syncTerminate(_ identifier: String) async throws { try record("syncTerminate:\(identifier)") }
     func forwardPause(_ identifier: String) async throws {}
@@ -445,7 +461,8 @@ struct ConflictResolutionTests {
     func happyPath() async {
         let conflict = Conflict(root: "file.txt", alphaChanges: [], betaChanges: [])
         let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
-        let recorder = RecordingProvider(syncSessions: [session])
+        let resolvedSession = makeSyncSession(id: "sync_1", name: "s1")
+        let recorder = RecordingProvider(syncSessions: [session], resolvedSyncSessions: [resolvedSession])
         let copyRecorder = CommandRecorder()
         let transport = FileTransport(execute: copyRecorder.execute)
         let store = SessionStore(provider: recorder, fileTransport: transport)
@@ -473,9 +490,10 @@ struct ConflictResolutionTests {
     func betaWins() async {
         let conflict = Conflict(root: "data.json", alphaChanges: [], betaChanges: [])
         let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+        let resolvedSession = makeSyncSession(id: "sync_1", name: "s1")
         let copyRecorder = CommandRecorder()
         let transport = FileTransport(execute: copyRecorder.execute)
-        let store = SessionStore(provider: FakeProvider(syncSessions: [session]), fileTransport: transport)
+        let store = SessionStore(provider: FakeProvider(syncSessions: [resolvedSession]), fileTransport: transport)
         await store.refresh()
 
         await store.resolveConflict(session: session, conflict: conflict, winner: .beta)
@@ -487,6 +505,27 @@ struct ConflictResolutionTests {
         let cp = copyRecorder.commands[1]
         // Beta (/tmp/b) -> Alpha (/tmp/a)
         #expect(cp.arguments == ["-Rp", "/tmp/b/data.json", "/tmp/a/data.json"])
+    }
+
+    @Test("Persistent conflict after flush sets error")
+    @MainActor
+    func conflictPersists() async {
+        let conflict = Conflict(root: "link.txt", alphaChanges: [], betaChanges: [])
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+        // Provider always returns sessions with conflict (simulates unresolvable conflict)
+        let recorder = RecordingProvider(syncSessions: [session])
+        let copyRecorder = CommandRecorder()
+        let transport = FileTransport(execute: copyRecorder.execute)
+        let store = SessionStore(provider: recorder, fileTransport: transport)
+        await store.refresh()
+
+        await store.resolveConflict(session: session, conflict: conflict, winner: .alpha)
+
+        #expect(store.lastError?.contains("could not be resolved") == true)
+        // Transport and flush should still have been attempted
+        #expect(copyRecorder.commands.count == 2)
+        let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
+        #expect(flushCalls.count == 1)
     }
 
     @Test("Copy failure sets lastError and does not flush")
@@ -520,7 +559,8 @@ struct ConflictResolutionTests {
             betaChanges: [Change(path: "logs/session.log", old: nil, new: Entry(kind: "file", digest: nil, executable: nil))]
         )
         let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
-        let recorder = RecordingProvider(syncSessions: [session])
+        let resolvedSession = makeSyncSession(id: "sync_1", name: "s1")
+        let recorder = RecordingProvider(syncSessions: [session], resolvedSyncSessions: [resolvedSession])
         let cmdRecorder = CommandRecorder()
         let transport = FileTransport(execute: cmdRecorder.execute)
         let store = SessionStore(provider: recorder, fileTransport: transport)

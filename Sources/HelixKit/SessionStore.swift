@@ -301,6 +301,14 @@ public final class SessionStore {
             ConsoleLog.shared.log("  flush succeeded")
             lastError = nil
             await refresh()
+
+            // Verify the conflict actually cleared
+            if let updated = syncSessions.first(where: { $0.identifier == session.identifier }),
+               let conflicts = updated.conflicts,
+               conflicts.contains(where: { $0.root == conflict.root }) {
+                ConsoleLog.shared.log("  conflict persisted after flush for '\(conflict.root)'", level: .error)
+                lastError = "Conflict \"\(conflict.root)\" could not be resolved. The file may be a symlink or have special attributes that prevent copying."
+            }
         } catch {
             ConsoleLog.shared.log("  flush FAILED: \(error.localizedDescription)", level: .error)
             lastError = error.localizedDescription
