@@ -262,6 +262,7 @@ private struct SyncListRow: View {
 
     private var hasVisibleMismatch: Bool {
         guard gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly else { return false }
+        guard gitCheck.hasRemote else { return false }
         let dismissed = (try? JSONDecoder().decode(Set<String>.self, from: Data(dismissedJSON.utf8))) ?? []
         return !dismissed.contains(session.identifier)
     }

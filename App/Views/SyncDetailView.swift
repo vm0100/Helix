@@ -22,7 +22,7 @@ struct SyncDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
                 endpointsSection
-                if (gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly) && !isGitMismatchDismissed {
+                if (gitCheck.status == .alphaOnly || gitCheck.status == .betaOnly) && gitCheck.hasRemote && !isGitMismatchDismissed {
                     gitMismatchBanner
                 }
                 configurationSection
@@ -498,6 +498,7 @@ private struct ConflictCard: View {
     @State private var isResolving = false
     @State private var alphaInfo: FileInfo?
     @State private var betaInfo: FileInfo?
+    @State private var pendingWinner: ConflictWinner?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -536,6 +537,29 @@ private struct ConflictCard: View {
         .background(.background)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .task { await loadFileInfo() }
+        .alert(
+            "Resolve Conflict",
+            isPresented: Binding(
+                get: { pendingWinner != nil },
+                set: { if !$0 { pendingWinner = nil } }
+            )
+        ) {
+            Button("Replace", role: .destructive) {
+                guard let winner = pendingWinner else { return }
+                pendingWinner = nil
+                Task {
+                    isResolving = true
+                    await store.resolveConflict(session: session, conflict: conflict, winner: winner)
+                    isResolving = false
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingWinner = nil
+            }
+        } message: {
+            let loserLabel = pendingWinner == .alpha ? "Beta" : "Alpha"
+            Text("This will permanently delete the \(loserLabel) version of \"\(conflict.root)\" and replace it with the selected side.")
+        }
     }
 
     // MARK: - Header
@@ -611,11 +635,7 @@ private struct ConflictCard: View {
             Spacer(minLength: 0)
 
             Button {
-                Task {
-                    isResolving = true
-                    await store.resolveConflict(session: session, conflict: conflict, winner: winner)
-                    isResolving = false
-                }
+                pendingWinner = winner
             } label: {
                 Label("Keep This Side", systemImage: "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)

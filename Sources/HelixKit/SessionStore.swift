@@ -13,10 +13,12 @@ public enum GitRepoStatus: Sendable, Equatable {
 public struct GitRepoCheck: Sendable, Equatable {
     public let status: GitRepoStatus
     public let subpath: String  // Relative path from sync root ("" for root)
+    public let hasRemote: Bool  // Whether the source .git has a remote configured
 
-    public init(status: GitRepoStatus, subpath: String = "") {
+    public init(status: GitRepoStatus, subpath: String = "", hasRemote: Bool = false) {
         self.status = status
         self.subpath = subpath
+        self.hasRemote = hasRemote
     }
 }
 
@@ -283,7 +285,8 @@ public final class SessionStore {
                 ConsoleLog.shared.log("  action: REMOVE \(loserURL.formatted)")
                 try await fileTransport.remove(endpoint: loserURL)
             } else {
-                ConsoleLog.shared.log("  action: COPY \(winnerURL.formatted) -> \(loserURL.formatted)")
+                ConsoleLog.shared.log("  action: REMOVE \(loserURL.formatted) then COPY \(winnerURL.formatted)")
+                try await fileTransport.remove(endpoint: loserURL)
                 try await fileTransport.copy(from: winnerURL, to: loserURL)
             }
             ConsoleLog.shared.log("  transport succeeded")
@@ -319,8 +322,12 @@ public final class SessionStore {
 
         switch (alphaHas, betaHas) {
         case (true, true): return GitRepoCheck(status: .symmetric)
-        case (true, false): return GitRepoCheck(status: .alphaOnly)
-        case (false, true): return GitRepoCheck(status: .betaOnly)
+        case (true, false):
+            let remote = await checkHasRemote(endpoint: session.alpha.endpointURL)
+            return GitRepoCheck(status: .alphaOnly, hasRemote: remote)
+        case (false, true):
+            let remote = await checkHasRemote(endpoint: session.beta.endpointURL)
+            return GitRepoCheck(status: .betaOnly, hasRemote: remote)
         case (false, false): return await scanSubdirectoriesForGit(session: session)
         }
     }
@@ -342,10 +349,12 @@ public final class SessionStore {
         let betaOnly = betaPaths.subtracting(alphaPaths).sorted()
 
         if let first = alphaOnly.first {
-            return GitRepoCheck(status: .alphaOnly, subpath: first)
+            let remote = await checkHasRemote(endpoint: session.alpha.endpointURL, subpath: first)
+            return GitRepoCheck(status: .alphaOnly, subpath: first, hasRemote: remote)
         }
         if let first = betaOnly.first {
-            return GitRepoCheck(status: .betaOnly, subpath: first)
+            let remote = await checkHasRemote(endpoint: session.beta.endpointURL, subpath: first)
+            return GitRepoCheck(status: .betaOnly, subpath: first, hasRemote: remote)
         }
         return GitRepoCheck(status: .symmetric)
     }
@@ -365,6 +374,16 @@ public final class SessionStore {
             }
         }
         return result
+    }
+
+    private func checkHasRemote(endpoint: EndpointURL, subpath: String = "") async -> Bool {
+        let target = subpath.isEmpty ? endpoint : appendingSubpath(to: endpoint, subpath: subpath)
+        let url = try? await fileTransport.run(
+            on: target,
+            command: "git config --get remote.origin.url"
+        )
+        let trimmed = url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !trimmed.isEmpty
     }
 
     // MARK: - Git Auto-Fix

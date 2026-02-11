@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="Platform">
     <img src="https://img.shields.io/badge/requirements-macOS%2014%2B-fa4e49?style=flat-square" alt="Requirements">
     <img src="https://img.shields.io/badge/swift-5.9-F05138?style=flat-square" alt="Swift">
-    <img src="https://img.shields.io/badge/version-2026.2.1-blue?style=flat-square" alt="Version">
+    <img src="https://img.shields.io/badge/version-2026.2.2-blue?style=flat-square" alt="Version">
     <a href="https://helix.hexul.com"><img src="https://img.shields.io/badge/website-helix.hexul.com-4A90D9?style=flat-square" alt="Website"></a>
 </p>
 
@@ -20,7 +20,7 @@
 - **Session dashboard** -- Browse, search, and filter all sync and forward sessions in a three-column window
 - **Create sessions** -- Step-by-step wizard for sync sessions; streamlined form for port forwarding
 - **Edit sessions** -- Change sync mode, ignore rules, symlinks, compression, and watch settings on existing sessions
-- **Conflict resolution** -- Inspect per-file conflicts side by side, keep either side with one click across local, SSH, and Docker endpoints
+- **Conflict resolution** -- Inspect per-file conflicts side by side, keep either side with one click across local, SSH, and Docker endpoints; handles file-vs-directory type mismatches with confirmation before destructive operations
 - **Endpoint support** -- Local paths, SSH remotes, and Docker containers with transport-aware file operations
 - **Git mismatch detection** -- Detects when a git repo exists on one sync endpoint but not the other, with automatic fix to initialize the missing side
 - **Console log** -- Dark-themed (Tokyo Night) panel with timestamped, color-coded CLI output and full multi-line text selection

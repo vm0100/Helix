@@ -440,7 +440,7 @@ func makeSyncSession(
 @Suite("SessionStore conflict resolution")
 struct ConflictResolutionTests {
 
-    @Test("Resolves conflict by copying winner to loser then flushing")
+    @Test("Resolves conflict by removing loser then copying winner then flushing")
     @MainActor
     func happyPath() async {
         let conflict = Conflict(root: "file.txt", alphaChanges: [], betaChanges: [])
@@ -454,18 +454,21 @@ struct ConflictResolutionTests {
         await store.resolveConflict(session: session, conflict: conflict, winner: .alpha)
 
         #expect(store.lastError == nil)
-        // Should have copied from alpha to beta
-        #expect(copyRecorder.commands.count == 1)
-        let cmd = copyRecorder.commands[0]
-        #expect(cmd.executable == "/bin/cp")
-        #expect(cmd.arguments == ["-Rp", "/tmp/a/file.txt", "/tmp/b/file.txt"])
+        // Should remove loser then copy winner
+        #expect(copyRecorder.commands.count == 2)
+        let rm = copyRecorder.commands[0]
+        #expect(rm.executable == "/bin/rm")
+        #expect(rm.arguments == ["-rf", "/tmp/b/file.txt"])
+        let cp = copyRecorder.commands[1]
+        #expect(cp.executable == "/bin/cp")
+        #expect(cp.arguments == ["-Rp", "/tmp/a/file.txt", "/tmp/b/file.txt"])
         // Should have flushed
         let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
         #expect(flushCalls.count == 1)
         #expect(flushCalls[0] == "syncFlush:sync_1")
     }
 
-    @Test("Beta wins copies from beta to alpha")
+    @Test("Beta wins removes alpha then copies from beta to alpha")
     @MainActor
     func betaWins() async {
         let conflict = Conflict(root: "data.json", alphaChanges: [], betaChanges: [])
@@ -478,9 +481,12 @@ struct ConflictResolutionTests {
         await store.resolveConflict(session: session, conflict: conflict, winner: .beta)
 
         #expect(store.lastError == nil)
-        let cmd = copyRecorder.commands[0]
+        #expect(copyRecorder.commands.count == 2)
+        let rm = copyRecorder.commands[0]
+        #expect(rm.arguments == ["-rf", "/tmp/a/data.json"])
+        let cp = copyRecorder.commands[1]
         // Beta (/tmp/b) -> Alpha (/tmp/a)
-        #expect(cmd.arguments == ["-Rp", "/tmp/b/data.json", "/tmp/a/data.json"])
+        #expect(cp.arguments == ["-Rp", "/tmp/b/data.json", "/tmp/a/data.json"])
     }
 
     @Test("Copy failure sets lastError and does not flush")
@@ -603,14 +609,17 @@ struct GitRepoStatusTests {
         #expect(check.status == .symmetric)
     }
 
-    @Test("Only alpha has .git at root returns alphaOnly with empty subpath")
+    @Test("Only alpha has .git with remote returns alphaOnly and hasRemote true")
     @MainActor
-    func alphaOnly() async {
+    func alphaOnlyWithRemote() async {
         let session = makeSyncSession(id: "sync_1", name: "test")
-        let transport = FileTransport { _, args in
+        let transport = FileTransport { executable, args in
             let joined = args.joined(separator: " ")
-            if joined.contains("/tmp/b") {
+            if executable == "/bin/test" && joined.contains("/tmp/b") {
                 throw CLIError(exitCode: 1, stderr: "")
+            }
+            if joined.contains("git config --get remote.origin.url") {
+                return "https://github.com/example/repo.git\n"
             }
             return ""
         }
@@ -620,6 +629,29 @@ struct GitRepoStatusTests {
 
         #expect(check.status == .alphaOnly)
         #expect(check.subpath.isEmpty)
+        #expect(check.hasRemote == true)
+    }
+
+    @Test("Only alpha has .git without remote returns alphaOnly and hasRemote false")
+    @MainActor
+    func alphaOnlyNoRemote() async {
+        let session = makeSyncSession(id: "sync_1", name: "test")
+        let transport = FileTransport { executable, args in
+            let joined = args.joined(separator: " ")
+            if executable == "/bin/test" && joined.contains("/tmp/b") {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            if joined.contains("git config --get remote.origin.url") {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(), fileTransport: transport)
+
+        let check = await store.gitRepoStatus(for: session)
+
+        #expect(check.status == .alphaOnly)
+        #expect(check.hasRemote == false)
     }
 
     @Test("Only beta has .git at root returns betaOnly with empty subpath")
