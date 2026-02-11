@@ -311,7 +311,7 @@ private struct SyncListRow: View {
                 .fill(isSelected ? Color.accentColor : Color.clear)
                 .padding(.horizontal, 4)
         )
-        .task(id: session.identifier) {
+        .task(id: "\(session.identifier):\(store.refreshCount)") {
             gitCheck = await store.gitRepoStatus(for: session)
         }
     }
