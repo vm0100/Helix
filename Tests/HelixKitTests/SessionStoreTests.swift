@@ -307,6 +307,31 @@ struct RecreateSessionTests {
         #expect(createCalls.isEmpty)
     }
 
+    @Test("addToIgnoreList terminates then creates with path appended to ignores")
+    @MainActor
+    func addToIgnoreList() async {
+        let session = makeSyncSession(
+            id: "sync_1",
+            name: "test",
+            ignorePaths: ["*.log"]
+        )
+        let recorder = RecordingProvider(syncSessions: [session])
+        let store = SessionStore(provider: recorder)
+        await store.refresh()
+
+        await store.addToIgnoreList(session: session, path: "node_modules/symlink")
+
+        #expect(store.lastError == nil)
+        let calls = recorder.calls
+        #expect(calls.count >= 2)
+        #expect(calls[0] == "syncTerminate:sync_1")
+        #expect(calls[1].hasPrefix("syncCreate:"))
+        // Verify the new ignore path is present alongside the existing one
+        #expect(calls[1].contains("--ignore"))
+        #expect(calls[1].contains("*.log"))
+        #expect(calls[1].contains("node_modules/symlink"))
+    }
+
     @Test("Create failure after terminate sets descriptive error")
     @MainActor
     func createFailsAfterTerminate() async {
@@ -424,7 +449,8 @@ func makeSyncSession(
     name: String?,
     status: String = "watching",
     paused: Bool = false,
-    conflicts: [Conflict]? = nil
+    conflicts: [Conflict]? = nil,
+    ignorePaths: [String]? = nil
 ) -> SyncSession {
     SyncSession(
         identifier: id,
@@ -444,7 +470,7 @@ func makeSyncSession(
             protocol_: "local", user: nil, host: nil, port: nil, path: "/tmp/b",
             connected: true, scanned: true, directories: 0, files: 0, totalFileSize: 0
         ),
-        ignore: IgnoreConfig(paths: nil, syntax: nil),
+        ignore: IgnoreConfig(paths: ignorePaths, syntax: nil),
         symlink: SymlinkConfig(mode: nil),
         watch: WatchConfig(mode: nil, pollingInterval: nil),
         permissions: PermissionsConfig(mode: nil, defaultFileMode: nil, defaultDirectoryMode: nil, defaultOwner: nil, defaultGroup: nil),

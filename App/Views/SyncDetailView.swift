@@ -499,6 +499,12 @@ private struct ConflictCard: View {
     @State private var alphaInfo: FileInfo?
     @State private var betaInfo: FileInfo?
     @State private var pendingWinner: ConflictWinner?
+    @State private var pendingIgnore = false
+
+    private var isResolvable: Bool {
+        let allChanges = conflict.alphaChanges + conflict.betaChanges
+        return !allChanges.contains { $0.new?.kind == "untracked" || $0.old?.kind == "untracked" }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -510,15 +516,40 @@ private struct ConflictCard: View {
                     color: .blue,
                     changes: conflict.alphaChanges,
                     info: alphaInfo,
-                    winner: .alpha
+                    winner: .alpha,
+                    showAction: isResolvable
                 )
                 conflictPane(
                     label: "Beta (\(session.beta.shortLabel))",
                     color: .purple,
                     changes: conflict.betaChanges,
                     info: betaInfo,
-                    winner: .beta
+                    winner: .beta,
+                    showAction: isResolvable
                 )
+            }
+
+            if !isResolvable {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("This conflict involves a symlink that cannot be synced between endpoints.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+
+                    Button {
+                        pendingIgnore = true
+                    } label: {
+                        Label("Add to Ignore List", systemImage: "eye.slash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .controlSize(.small)
+                    .disabled(isResolving)
+                }
+                .padding(8)
+                .background(.orange.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
             if isResolving {
@@ -560,6 +591,21 @@ private struct ConflictCard: View {
             let loserLabel = pendingWinner == .alpha ? "Beta" : "Alpha"
             Text("This will permanently delete the \(loserLabel) version of \"\(conflict.root)\" and replace it with the selected side.")
         }
+        .alert(
+            "Add to Ignore List",
+            isPresented: $pendingIgnore
+        ) {
+            Button("Add to Ignores", role: .destructive) {
+                Task {
+                    isResolving = true
+                    await store.addToIgnoreList(session: session, path: conflict.root)
+                    isResolving = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will terminate the session and recreate it with \"\(conflict.root)\" in the ignore list. Sync history will be reset.")
+        }
     }
 
     // MARK: - Header
@@ -598,7 +644,8 @@ private struct ConflictCard: View {
         color: Color,
         changes: [Change],
         info: FileInfo?,
-        winner: ConflictWinner
+        winner: ConflictWinner,
+        showAction: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
@@ -634,16 +681,18 @@ private struct ConflictCard: View {
 
             Spacer(minLength: 0)
 
-            Button {
-                pendingWinner = winner
-            } label: {
-                Label("Keep This Side", systemImage: "checkmark.circle.fill")
-                    .frame(maxWidth: .infinity)
+            if showAction {
+                Button {
+                    pendingWinner = winner
+                } label: {
+                    Label("Keep This Side", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(color)
+                .controlSize(.small)
+                .disabled(isResolving)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(color)
-            .controlSize(.small)
-            .disabled(isResolving)
         }
         .padding(8)
         .background(color.opacity(0.05))

@@ -154,6 +154,19 @@ public final class SessionStore {
         }
     }
 
+    // MARK: - Ignore List
+
+    public func addToIgnoreList(session: SyncSession, path: String) async {
+        var opts = SyncCreateOptions(from: session)
+        opts.ignorePaths.append(path)
+        await recreateSync(
+            session,
+            options: opts,
+            alpha: session.alpha.endpointURL.formatted,
+            beta: session.beta.endpointURL.formatted
+        )
+    }
+
     // MARK: - Sync Actions
 
     public func pauseSync(_ identifier: String) async {
