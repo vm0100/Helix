@@ -641,6 +641,73 @@ struct ConflictResolutionTests {
     }
 }
 
+@Suite("SessionStore conflictDiff")
+struct ConflictDiffTests {
+
+    @Test("Returns diff hunks for conflicting file content")
+    @MainActor
+    func diffReturnsHunks() async {
+        let conflict = Conflict(
+            root: "readme.txt",
+            alphaChanges: [Change(path: "readme.txt", old: Entry(kind: "file", digest: nil, executable: nil), new: Entry(kind: "file", digest: nil, executable: nil))],
+            betaChanges: [Change(path: "readme.txt", old: Entry(kind: "file", digest: nil, executable: nil), new: Entry(kind: "file", digest: nil, executable: nil))]
+        )
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+
+        let transport = FileTransport { executable, args in
+            // Return different content depending on which path is being cat'd
+            if args.last == "/tmp/a/readme.txt" {
+                return "line1\noriginal\nline3\n"
+            } else if args.last == "/tmp/b/readme.txt" {
+                return "line1\nmodified\nline3\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(syncSessions: [session]), fileTransport: transport)
+
+        let result = await store.conflictDiff(session: session, conflict: conflict)
+        #expect(result != nil)
+        #expect(!result!.isEmpty)
+
+        let allLines = result!.flatMap(\.lines)
+        let deletions = allLines.filter { $0.tag == .delete }
+        let insertions = allLines.filter { $0.tag == .insert }
+        #expect(deletions.count > 0)
+        #expect(insertions.count > 0)
+    }
+
+    @Test("Returns nil when file read fails")
+    @MainActor
+    func diffReturnsNilOnError() async {
+        let conflict = Conflict(root: "missing.txt", alphaChanges: [], betaChanges: [])
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+
+        let transport = FileTransport { _, _ in
+            throw CLIError(exitCode: 1, stderr: "No such file")
+        }
+        let store = SessionStore(provider: FakeProvider(syncSessions: [session]), fileTransport: transport)
+
+        let result = await store.conflictDiff(session: session, conflict: conflict)
+        #expect(result == nil)
+    }
+
+    @Test("Returns empty hunks for identical files")
+    @MainActor
+    func diffIdenticalFiles() async {
+        let conflict = Conflict(root: "same.txt", alphaChanges: [], betaChanges: [])
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+
+        let transport = FileTransport { _, _ in
+            return "identical\ncontent\n"
+        }
+        let store = SessionStore(provider: FakeProvider(syncSessions: [session]), fileTransport: transport)
+
+        let result = await store.conflictDiff(session: session, conflict: conflict)
+        #expect(result != nil)
+        #expect(result!.isEmpty)
+    }
+}
+
 @Suite("SessionStore git repo status")
 struct GitRepoStatusTests {
 

@@ -96,6 +96,24 @@ public struct FileTransport: Sendable {
         return try parseStatOutput(output)
     }
 
+    // MARK: - Read File
+
+    public func readFile(endpoint: EndpointURL) async throws -> String {
+        switch endpoint {
+        case .local(let path):
+            return try await execute("/bin/cat", [path])
+        case .ssh(let user, let host, let port, let path):
+            var args: [String] = []
+            if let port {
+                args += ["-p", "\(port)"]
+            }
+            args += [sshTarget(user: user, host: host), "cat \(shellQuoted(path))"]
+            return try await execute("/usr/bin/ssh", args)
+        case .docker(let container, let path):
+            return try await execute("/usr/bin/docker", ["exec", container, "cat", path])
+        }
+    }
+
     // MARK: - Remove
 
     public func remove(endpoint: EndpointURL) async throws {

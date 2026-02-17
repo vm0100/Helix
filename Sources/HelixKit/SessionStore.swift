@@ -258,6 +258,23 @@ public final class SessionStore {
 
     // MARK: - Conflict Resolution
 
+    public func conflictDiff(
+        session: SyncSession,
+        conflict: Conflict
+    ) async -> [DiffHunkResult]? {
+        let alphaURL = appendingSubpath(to: session.alpha.endpointURL, subpath: conflict.root)
+        let betaURL = appendingSubpath(to: session.beta.endpointURL, subpath: conflict.root)
+
+        do {
+            async let alphaContent = fileTransport.readFile(endpoint: alphaURL)
+            async let betaContent = fileTransport.readFile(endpoint: betaURL)
+            let (alpha, beta) = try await (alphaContent, betaContent)
+            return DiffEngine.diffLines(old: alpha, new: beta)
+        } catch {
+            return nil
+        }
+    }
+
     public func conflictFileInfo(
         session: SyncSession,
         conflict: Conflict

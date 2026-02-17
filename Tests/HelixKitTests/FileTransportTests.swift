@@ -571,6 +571,79 @@ struct FileTransportRunTests {
     }
 }
 
+@Suite("FileTransport readFile commands")
+struct FileTransportReadFileTests {
+
+    @Test("local readFile uses cat")
+    func readLocal() async throws {
+        let recorder = CommandRecorder(output: "file contents here")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.readFile(endpoint: .local(path: "/tmp/file.txt"))
+
+        #expect(result == "file contents here")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/bin/cat")
+        #expect(cmd.arguments == ["/tmp/file.txt"])
+    }
+
+    @Test("ssh readFile uses ssh cat")
+    func readSSH() async throws {
+        let recorder = CommandRecorder(output: "remote content")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.readFile(
+            endpoint: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/file.txt")
+        )
+
+        #expect(result == "remote content")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["deploy@server.com", "cat '/opt/file.txt'"])
+    }
+
+    @Test("ssh readFile with port passes -p flag")
+    func readSSHWithPort() async throws {
+        let recorder = CommandRecorder(output: "data")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.readFile(
+            endpoint: .ssh(user: nil, host: "box", port: 2222, path: "/file.txt")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["-p", "2222", "box", "cat '/file.txt'"])
+    }
+
+    @Test("docker readFile uses docker exec cat")
+    func readDocker() async throws {
+        let recorder = CommandRecorder(output: "container content")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.readFile(
+            endpoint: .docker(container: "myapp", path: "/app/file.txt")
+        )
+
+        #expect(result == "container content")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "cat", "/app/file.txt"])
+    }
+
+    @Test("readFile ssh with tilde uses $HOME")
+    func readSSHTilde() async throws {
+        let recorder = CommandRecorder(output: "tilde content")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.readFile(
+            endpoint: .ssh(user: "hex", host: "server", port: nil, path: "~/project/file.txt")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["hex@server", "cat \"$HOME/project/file.txt\""])
+    }
+}
+
 // MARK: - Test Helpers
 
 struct RecordedCommand: Sendable {
