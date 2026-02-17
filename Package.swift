@@ -13,9 +13,19 @@ let package = Package(
         .library(name: "HelixKit", targets: ["HelixKit"]),
     ],
     targets: [
+        .systemLibrary(
+            name: "CHelixDiff",
+            path: "Sources/CHelixDiff"
+        ),
         .target(
             name: "HelixKit",
-            path: "Sources/HelixKit"
+            dependencies: ["CHelixDiff"],
+            path: "Sources/HelixKit",
+            linkerSettings: [
+                .unsafeFlags([
+                    "-LRustDiff/target/release",
+                ]),
+            ]
         ),
         .testTarget(
             name: "HelixKitTests",

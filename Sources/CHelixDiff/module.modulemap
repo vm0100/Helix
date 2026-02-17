@@ -1,0 +1,5 @@
+module CHelixDiff {
+    header "include/helix_diff.h"
+    link "helix_diff"
+    export *
+}
