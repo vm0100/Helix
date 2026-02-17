@@ -698,10 +698,11 @@ private struct ConflictCard: View {
             Spacer()
             if isFileDiff {
                 Button { showDiff = true } label: {
-                    Image(systemName: "diff")
+                    Label("Diff", systemImage: "chevron.left.forwardslash.chevron.right")
                         .font(.caption2)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
                 .help("View Diff")
                 .accessibilityLabel("View Diff")
             }
