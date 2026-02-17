@@ -17,6 +17,14 @@ targets:
   Helix:
     type: application
     platform: macOS
+    preBuildScripts:
+      - script: |
+          if [ ! -f "$SRCROOT/RustDiff/target/release/libhelix_diff.a" ]; then
+            echo "Building Rust diff library..."
+            cd "$SRCROOT/RustDiff" && bash build.sh
+          fi
+        name: Build Rust Diff Library
+        basedOnDependencyAnalysis: false
     sources:
       - path: App
     dependencies:

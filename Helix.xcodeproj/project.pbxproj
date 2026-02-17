@@ -149,6 +149,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7153544A80C737BC272A55D5 /* Build configuration list for PBXNativeTarget "Helix" */;
 			buildPhases = (
+				A04EC4BF588C98164322EC2F /* Build Rust Diff Library */,
 				C955DC0BA41CE8E7C0B15622 /* Sources */,
 				92968DCD1186C959B4E25EC5 /* Resources */,
 				549F33333F4D64B56DC82C1F /* Frameworks */,
@@ -208,6 +209,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A04EC4BF588C98164322EC2F /* Build Rust Diff Library */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Diff Library";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ ! -f \"$SRCROOT/RustDiff/target/release/libhelix_diff.a\" ]; then\n  echo \"Building Rust diff library...\"\n  cd \"$SRCROOT/RustDiff\" && bash build.sh\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C955DC0BA41CE8E7C0B15622 /* Sources */ = {
