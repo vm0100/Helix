@@ -563,10 +563,16 @@ private struct ConflictCard: View {
     @State private var betaInfo: FileInfo?
     @State private var pendingWinner: ConflictWinner?
     @State private var pendingIgnore = false
+    @State private var showDiff = false
 
     private var isResolvable: Bool {
         let allChanges = conflict.alphaChanges + conflict.betaChanges
         return !allChanges.contains { $0.new?.kind == "untracked" || $0.old?.kind == "untracked" }
+    }
+
+    private var isFileDiff: Bool {
+        let allChanges = conflict.alphaChanges + conflict.betaChanges
+        return allChanges.contains { ($0.new?.kind ?? $0.old?.kind) == "file" }
     }
 
     var body: some View {
@@ -634,6 +640,9 @@ private struct ConflictCard: View {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(.orange.opacity(isResolvable ? 0 : 0.3), lineWidth: 1)
         )
+        .sheet(isPresented: $showDiff) {
+            DiffSheet(session: session, conflict: conflict, store: store)
+        }
         .task { await loadFileInfo() }
         .alert(
             "Resolve Conflict",
@@ -687,6 +696,15 @@ private struct ConflictCard: View {
                 .monospaced()
                 .fontWeight(.semibold)
             Spacer()
+            if isFileDiff {
+                Button { showDiff = true } label: {
+                    Image(systemName: "diff")
+                        .font(.caption2)
+                }
+                .buttonStyle(.borderless)
+                .help("View Diff")
+                .accessibilityLabel("View Diff")
+            }
             if session.alpha.protocol_ == "local", let base = session.alpha.path {
                 Button {
                     let fullPath = (base as NSString).appendingPathComponent(conflict.root)
