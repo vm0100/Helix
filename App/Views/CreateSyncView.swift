@@ -9,6 +9,7 @@ struct CreateSyncView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var step = 0
+    @State private var maxStepReached = 0
 
     // Step 1: Endpoints
     @State private var sessionName = ""
@@ -29,6 +30,7 @@ struct CreateSyncView: View {
     @State private var syncMode = "two-way-safe"
 
     // Step 3: Options
+    @State private var labels: [String: String] = [:]
     @State private var ignoreInput = ""
     @State private var ignoreVCS = false
     @State private var symlinkMode = "portable"
@@ -45,13 +47,14 @@ struct CreateSyncView: View {
             stepIndicator
             Divider()
 
-            TabView(selection: $step) {
-                endpointsStep.tag(0)
-                modeStep.tag(1)
-                optionsStep.tag(2)
-                reviewStep.tag(3)
+            Group {
+                switch step {
+                case 0: endpointsStep
+                case 1: modeStep
+                case 2: optionsStep
+                default: reviewStep
+                }
             }
-            .tabViewStyle(.automatic)
 
             Divider()
             navigationButtons
@@ -63,22 +66,30 @@ struct CreateSyncView: View {
 
     private var stepIndicator: some View {
         HStack(spacing: 0) {
-            ForEach(0..<4, id: \.self) { i in
-                StepDot(
-                    number: i + 1,
-                    label: stepLabels[i],
-                    isActive: step == i,
-                    isCompleted: step > i
-                )
-                if i < 3 {
-                    Rectangle()
-                        .fill(step > i ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(height: 2)
+            ForEach(Array(stepLabels.enumerated()), id: \.offset) { i, label in
+                Button {
+                    if i != step && i <= maxStepReached {
+                        withAnimation { step = i }
+                    }
+                } label: {
+                    VStack(spacing: 6) {
+                        Text(label)
+                            .font(.subheadline)
+                            .fontWeight(step == i ? .semibold : .regular)
+                            .foregroundStyle(step == i ? Color.primary : (i <= maxStepReached ? Color.secondary : Color(nsColor: .tertiaryLabelColor)))
+
+                        Rectangle()
+                            .fill(step == i ? Color.accentColor : .clear)
+                            .frame(height: 2)
+                    }
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 0)
     }
 
     private var stepLabels: [String] {
@@ -90,8 +101,40 @@ struct CreateSyncView: View {
     private var endpointsStep: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                TextField("Session Name (optional)", text: $sessionName)
-                    .textFieldStyle(.roundedBorder)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Session Name (optional)", text: $sessionName)
+                        .textFieldStyle(.roundedBorder)
+                    if let error = nameValidationError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Tag sessions for filtering and batch operations.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        LabelEditor(labels: $labels)
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Labels")
+                        if !labels.isEmpty {
+                            Text("\(labels.count)")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(.blue.opacity(0.1))
+                                .foregroundStyle(.blue)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
 
                 EndpointPicker(
                     label: "Alpha (Source)",
@@ -149,46 +192,33 @@ struct CreateSyncView: View {
     // MARK: - Step 4: Review
 
     private var reviewStep: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Review")
-                    .font(.headline)
-
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-                    if !sessionName.isEmpty {
-                        GridRow {
-                            Text("Name").foregroundStyle(.secondary)
-                            Text(sessionName)
-                        }
-                    }
-                    GridRow {
-                        Text("Alpha").foregroundStyle(.secondary)
-                        Text(alphaEndpoint.formatted).monospaced()
-                    }
-                    GridRow {
-                        Text("Beta").foregroundStyle(.secondary)
-                        Text(betaEndpoint.formatted).monospaced()
-                    }
-                    GridRow {
-                        Text("Mode").foregroundStyle(.secondary)
-                        Text(syncMode)
-                    }
-                    if !ignorePaths.isEmpty {
-                        GridRow {
-                            Text("Ignore").foregroundStyle(.secondary)
-                            Text(ignorePaths.joined(separator: ", ")).monospaced()
-                        }
+        Form {
+            Section("Summary") {
+                if !sessionName.isEmpty {
+                    LabeledContent("Name", value: sessionName)
+                }
+                LabeledContent("Alpha") {
+                    Text(alphaEndpoint.formatted).monospaced()
+                }
+                LabeledContent("Beta") {
+                    Text(betaEndpoint.formatted).monospaced()
+                }
+                LabeledContent("Mode", value: syncMode)
+                if !labels.isEmpty {
+                    LabeledContent("Labels") {
+                        Text(labels.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", "))
+                            .monospaced()
                     }
                 }
-                .font(.caption)
-
-                Divider()
-
+                if !ignorePaths.isEmpty {
+                    LabeledContent("Ignore") {
+                        Text(ignorePaths.joined(separator: ", ")).monospaced()
+                    }
+                }
+            }
+            Section("CLI Command") {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("CLI Command")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                         Spacer()
                         Button("Copy") {
                             NSPasteboard.general.clearContents()
@@ -206,8 +236,8 @@ struct CreateSyncView: View {
                         .textSelection(.enabled)
                 }
             }
-            .padding()
         }
+        .formStyle(.grouped)
     }
 
     // MARK: - Navigation
@@ -221,6 +251,13 @@ struct CreateSyncView: View {
 
             Spacer()
 
+            if let error = store.lastError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+            }
+
             if step > 0 {
                 Button("Back") {
                     withAnimation { step -= 1 }
@@ -229,7 +266,10 @@ struct CreateSyncView: View {
 
             if step < 3 {
                 Button("Next") {
-                    withAnimation { step += 1 }
+                    withAnimation {
+                        step += 1
+                        maxStepReached = max(maxStepReached, step)
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canAdvance)
@@ -248,9 +288,24 @@ struct CreateSyncView: View {
         switch step {
         case 0:
             return alphaEndpointPicker.isValid && betaEndpointPicker.isValid
+                && nameValidationError == nil
         default:
             return true
         }
+    }
+
+    private var nameValidationError: String? {
+        guard !sessionName.isEmpty else { return nil }
+        if sessionName.lowercased() == "defaults" {
+            return "\"defaults\" is reserved"
+        }
+        if let first = sessionName.first, !first.isLetter {
+            return "Must start with a letter"
+        }
+        if let bad = sessionName.first(where: { !$0.isLetter && !$0.isNumber && $0 != "-" }) {
+            return "Invalid character: '\(bad)' — only letters, numbers, and dashes allowed"
+        }
+        return nil
     }
 
     // MARK: - Data Assembly
@@ -297,6 +352,7 @@ struct CreateSyncView: View {
     private var options: SyncCreateOptions {
         var opts = SyncCreateOptions()
         opts.name = sessionName.isEmpty ? nil : sessionName
+        opts.labels = labels
         opts.mode = syncMode
         opts.paused = createPaused
         opts.ignorePaths = ignorePaths
@@ -325,38 +381,3 @@ struct CreateSyncView: View {
         }
     }
 }
-
-// MARK: - Supporting Views
-
-private struct StepDot: View {
-    let number: Int
-    let label: String
-    let isActive: Bool
-    let isCompleted: Bool
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .fill(isActive ? Color.accentColor : (isCompleted ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.3)))
-                    .frame(width: 24, height: 24)
-                if isCompleted {
-                    Image(systemName: "checkmark")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                } else {
-                    Text("\(number)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(isActive ? .white : .secondary)
-                }
-            }
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(isActive ? .primary : .secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-

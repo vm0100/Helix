@@ -6,6 +6,8 @@ import SwiftUI
 struct StatusBadge: View {
     let status: String
     let paused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
 
     init(status: String, paused: Bool = false) {
         self.status = status
@@ -16,6 +18,22 @@ struct StatusBadge: View {
         Circle()
             .fill(color)
             .frame(width: 8, height: 8)
+            .opacity(breathing ? 0.5 : 1.0)
+            .animation(pulseAnimation, value: breathing)
+            .onChange(of: status) { breathing = false }
+            .onAppear { breathing = isActive }
+            .accessibilityLabel(label)
+    }
+
+    private var isActive: Bool {
+        !paused && !reduceMotion && (status == "watching" || status == "scanning"
+            || status == "staging" || status == "transitioning" || status == "saving")
+    }
+
+    private var pulseAnimation: Animation? {
+        guard isActive else { return nil }
+        let duration: Double = status == "watching" ? 3.0 : 1.2
+        return .easeInOut(duration: duration).repeatForever(autoreverses: true)
     }
 
     var color: Color {

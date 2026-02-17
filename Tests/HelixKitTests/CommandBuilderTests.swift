@@ -165,7 +165,7 @@ struct SyncCreateOptionsFromSessionTests {
         session = SyncSession(
             identifier: session.identifier, version: session.version,
             creationTime: session.creationTime, creatingVersion: session.creatingVersion,
-            name: session.name, paused: session.paused, status: session.status,
+            name: session.name, labels: session.labels, paused: session.paused, status: session.status,
             successfulCycles: session.successfulCycles, mode: session.mode,
             alpha: session.alpha, beta: session.beta,
             ignore: IgnoreConfig(paths: ["**/.git", "node_modules"], syntax: nil),
@@ -189,7 +189,7 @@ struct SyncCreateOptionsFromSessionTests {
         let session = SyncSession(
             identifier: "sync_1", version: 1,
             creationTime: "2026-01-01T00:00:00Z", creatingVersion: "0.18.1",
-            name: "test", paused: false, status: "watching", successfulCycles: 0,
+            name: "test", labels: nil, paused: false, status: "watching", successfulCycles: 0,
             mode: "two-way-safe",
             alpha: Endpoint(protocol_: "local", user: nil, host: nil, port: nil, path: "/tmp/a",
                             connected: true, scanned: true, directories: 0, files: 0, totalFileSize: 0),
@@ -214,7 +214,7 @@ struct SyncCreateOptionsFromSessionTests {
         let session = SyncSession(
             identifier: "sync_1", version: 1,
             creationTime: "2026-01-01T00:00:00Z", creatingVersion: "0.18.1",
-            name: "roundtrip", paused: false, status: "watching", successfulCycles: 5,
+            name: "roundtrip", labels: nil, paused: false, status: "watching", successfulCycles: 5,
             mode: "one-way-safe",
             alpha: Endpoint(protocol_: "ssh", user: "hex", host: "server.com", port: nil, path: "~/proj",
                             connected: true, scanned: true, directories: 10, files: 50, totalFileSize: 1000),

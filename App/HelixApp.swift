@@ -26,7 +26,6 @@ struct HelixApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuBarPopover(store: store)
-                .frame(width: 320, height: 400)
         } label: {
             MenuBarIcon(health: store.overallHealth)
                 .task { store.startPolling() }

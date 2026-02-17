@@ -55,6 +55,7 @@ public struct SyncCreateOptions {
     public init(from session: SyncSession) {
         self.init()
         name = session.name
+        labels = session.labels ?? [:]
         mode = session.mode
         paused = session.paused
         ignorePaths = session.ignore.paths ?? []

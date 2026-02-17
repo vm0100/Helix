@@ -21,9 +21,17 @@ struct MenuBarPopover: View {
                 sessionList
             }
 
-            Divider()
-            footer
+            if let error = store.lastError {
+                Divider()
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+            }
         }
+        .frame(width: 320)
         .task {
             await store.refresh()
         }
@@ -34,6 +42,11 @@ struct MenuBarPopover: View {
             Text("Helix")
                 .font(.headline)
             Spacer()
+            Button("Open Helix") {
+                openMainWindow()
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -41,7 +54,6 @@ struct MenuBarPopover: View {
 
     private var daemonWarning: some View {
         VStack(spacing: 12) {
-            Spacer()
             Image(systemName: "exclamationmark.triangle")
                 .font(.largeTitle)
                 .foregroundStyle(.orange)
@@ -51,14 +63,12 @@ struct MenuBarPopover: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Spacer()
         }
         .padding()
     }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Spacer()
             Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
@@ -69,11 +79,9 @@ struct MenuBarPopover: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Create Your First Session") {
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
+                openMainWindow()
             }
             .controlSize(.small)
-            Spacer()
         }
         .padding()
     }
@@ -85,8 +93,7 @@ struct MenuBarPopover: View {
                     SyncSessionRow(session: session, store: store)
                         .onTapGesture {
                             store.pendingSessionSelection = session.identifier
-                            openWindow(id: "main")
-                            NSApp.activate(ignoringOtherApps: true)
+                            openMainWindow()
                         }
                     Divider().padding(.leading, 28)
                 }
@@ -94,33 +101,26 @@ struct MenuBarPopover: View {
                     ForwardSessionRow(session: session, store: store)
                         .onTapGesture {
                             store.pendingSessionSelection = session.identifier
-                            openWindow(id: "main")
-                            NSApp.activate(ignoringOtherApps: true)
+                            openMainWindow()
                         }
                     Divider().padding(.leading, 28)
                 }
             }
         }
+        .frame(maxHeight: maxListHeight)
     }
 
-    private var footer: some View {
-        HStack {
-            Button("Open Helix") {
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
-            }
-            .buttonStyle(.borderless)
-            .font(.caption)
-            Spacer()
-            if let error = store.lastError {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+    private var maxListHeight: CGFloat {
+        let rowHeight: CGFloat = 62
+        let count = CGFloat(store.syncSessions.count + store.forwardSessions.count)
+        // Show up to ~7 sessions before scrolling
+        return min(count * rowHeight, 430)
+    }
+
+    private func openMainWindow() {
+        NSApp.keyWindow?.close()
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

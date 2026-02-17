@@ -24,6 +24,7 @@ struct CreateForwardView: View {
     @State private var destUser = ""
     @State private var destPort = ""
 
+    @State private var labels: [String: String] = [:]
     @State private var createPaused = false
     @State private var isCreating = false
 
@@ -37,6 +38,31 @@ struct CreateForwardView: View {
 
                     TextField("Session Name (optional)", text: $sessionName)
                         .textFieldStyle(.roundedBorder)
+
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Tag sessions for filtering and batch operations.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            LabelEditor(labels: $labels)
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Labels")
+                            if !labels.isEmpty {
+                                Text("\(labels.count)")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(.blue.opacity(0.1))
+                                    .foregroundStyle(.blue)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
 
                     sourceSection
                     destinationSection
@@ -200,6 +226,7 @@ struct CreateForwardView: View {
     private var options: ForwardCreateOptions {
         var opts = ForwardCreateOptions()
         opts.name = sessionName.isEmpty ? nil : sessionName
+        opts.labels = labels
         opts.paused = createPaused
         return opts
     }

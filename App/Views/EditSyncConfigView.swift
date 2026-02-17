@@ -9,6 +9,7 @@ struct EditSyncConfigView: View {
     let store: SessionStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var labels: [String: String]
     @State private var syncMode: String
     @State private var ignoreInput: String
     @State private var ignoreVCS: Bool
@@ -21,6 +22,7 @@ struct EditSyncConfigView: View {
     init(session: SyncSession, store: SessionStore) {
         self.session = session
         self.store = store
+        _labels = State(initialValue: session.labels ?? [:])
         _syncMode = State(initialValue: session.mode ?? "two-way-safe")
         _ignoreInput = State(initialValue: (session.ignore.paths ?? []).joined(separator: "\n"))
         _ignoreVCS = State(initialValue: false)
@@ -38,6 +40,35 @@ struct EditSyncConfigView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     endpointSummary
+
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Tag sessions for filtering and batch operations.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            LabelEditor(labels: $labels)
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Labels")
+                            if !labels.isEmpty {
+                                Text("\(labels.count)")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(.blue.opacity(0.1))
+                                    .foregroundStyle(.blue)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    Text("Synchronization Mode")
+                        .font(.headline)
                     SyncModePicker(selectedMode: $syncMode)
                     SyncOptionsForm(
                         ignoreInput: $ignoreInput,
@@ -158,13 +189,15 @@ struct EditSyncConfigView: View {
     // MARK: - Change Detection
 
     private var hasChanges: Bool {
+        let currentLabels = session.labels ?? [:]
         let currentMode = session.mode ?? "two-way-safe"
         let currentIgnore = (session.ignore.paths ?? []).joined(separator: "\n")
         let currentSymlink = session.symlink.mode ?? "portable"
         let currentCompression = session.compression.algorithm ?? "none"
         let currentWatch = session.watch.mode ?? "portable"
 
-        return syncMode != currentMode
+        return labels != currentLabels
+            || syncMode != currentMode
             || ignoreInput != currentIgnore
             || symlinkMode != currentSymlink
             || compression != currentCompression
@@ -177,6 +210,7 @@ struct EditSyncConfigView: View {
 
     private var options: SyncCreateOptions {
         var opts = SyncCreateOptions(from: session)
+        opts.labels = labels
         opts.mode = syncMode
         opts.ignorePaths = ignorePaths
         opts.ignoreVCS = ignoreVCS

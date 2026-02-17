@@ -19,6 +19,14 @@ struct EndpointPicker: View {
     @Binding var port: String
     @Binding var container: String
 
+    @State private var connectionStatus: ConnectionStatus = .untested
+    @State private var isTesting = false
+    @State private var showRemoteBrowser = false
+
+    enum ConnectionStatus {
+        case untested, connected, failed(String)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(label)
@@ -94,8 +102,44 @@ struct EndpointPicker: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 60)
             }
-            TextField("Remote Path", text: $path)
-                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Button("Test Connection") {
+                    Task { await testConnection() }
+                }
+                .disabled(host.isEmpty || isTesting)
+
+                if isTesting {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                connectionStatusView
+
+                Spacer()
+            }
+
+            HStack {
+                TextField("Remote Path", text: $path)
+                    .textFieldStyle(.roundedBorder)
+                if case .connected = connectionStatus {
+                    Button("Browse...") {
+                        showRemoteBrowser = true
+                    }
+                }
+            }
+        }
+        .onChange(of: host) { _, _ in resetConnectionStatus() }
+        .onChange(of: user) { _, _ in resetConnectionStatus() }
+        .onChange(of: port) { _, _ in resetConnectionStatus() }
+        .sheet(isPresented: $showRemoteBrowser) {
+            RemoteDirectoryBrowser(
+                user: user.isEmpty ? nil : user,
+                host: host,
+                port: Int(port),
+                initialPath: path.isEmpty ? "~" : path,
+                onSelect: { selectedPath in path = selectedPath }
+            )
         }
     }
 
@@ -105,6 +149,48 @@ struct EndpointPicker: View {
                 .textFieldStyle(.roundedBorder)
             TextField("Container Path", text: $path)
                 .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    // MARK: - Connection Testing
+
+    private func testConnection() async {
+        isTesting = true
+        connectionStatus = .untested
+        defer { isTesting = false }
+
+        var args = ["-o", "ConnectTimeout=5", "-o", "BatchMode=yes"]
+        if let p = Int(port) { args += ["-p", "\(p)"] }
+        let target = user.isEmpty ? host : "\(user)@\(host)"
+        args += [target, "echo", "ok"]
+
+        do {
+            _ = try await runProcess(executablePath: "/usr/bin/ssh", arguments: args)
+            connectionStatus = .connected
+        } catch {
+            connectionStatus = .failed(error.localizedDescription)
+        }
+    }
+
+    private func resetConnectionStatus() {
+        connectionStatus = .untested
+    }
+
+    @ViewBuilder
+    private var connectionStatusView: some View {
+        switch connectionStatus {
+        case .untested:
+            EmptyView()
+        case .connected:
+            Label("Connected", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.caption)
+        case .failed(let message):
+            Text(message)
+                .foregroundStyle(.red)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 

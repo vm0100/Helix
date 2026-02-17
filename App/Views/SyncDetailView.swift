@@ -10,9 +10,12 @@ struct SyncDetailView: View {
     @State private var showTerminateConfirmation = false
     @State private var showResetConfirmation = false
     @State private var showEditSheet = false
+    @State private var actionInProgress: String?
     @State private var gitCheck: GitRepoCheck = GitRepoCheck(status: .unknown)
     @State private var isFixingGit = false
     @State private var showManualFix = false
+    @State private var showGuidance = false
+    @State private var showDangerZone = false
     @State private var sourceRemoteURL: String?
     @State private var sourceBranch: String?
     @AppStorage("dismissedGitMismatches") private var dismissedJSON = "[]"
@@ -99,6 +102,20 @@ struct SyncDetailView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
+            if let labels = session.labels, !labels.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(labels.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        Text("\(key): \(value)")
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.blue.opacity(0.1))
+                            .foregroundStyle(.blue)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+
             if let error = store.lastError {
                 Text(error)
                     .font(.caption)
@@ -110,26 +127,40 @@ struct SyncDetailView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
+            if actionInProgress != nil {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
             if session.paused {
                 Button("Resume") {
-                    Task { await store.resumeSync(session.identifier) }
+                    Task { await runAction("resume") { await store.resumeSync(session.identifier) } }
                 }
+                .disabled(actionInProgress != nil)
             } else {
                 Button("Pause") {
-                    Task { await store.pauseSync(session.identifier) }
+                    Task { await runAction("pause") { await store.pauseSync(session.identifier) } }
                 }
+                .disabled(actionInProgress != nil)
             }
 
             Button("Flush") {
-                Task { await store.flushSync(session.identifier) }
+                Task { await runAction("flush") { await store.flushSync(session.identifier) } }
             }
-            .disabled(session.paused)
+            .disabled(session.paused || actionInProgress != nil)
 
             Button("Reset") {
                 showResetConfirmation = true
             }
+            .disabled(actionInProgress != nil)
         }
         .controlSize(.small)
+    }
+
+    private func runAction(_ name: String, _ action: () async -> Void) async {
+        actionInProgress = name
+        await action()
+        actionInProgress = nil
     }
 
     // MARK: - Endpoints
@@ -139,10 +170,35 @@ struct SyncDetailView: View {
             Text("Endpoints")
                 .font(.headline)
 
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 0) {
                 EndpointCard(label: "Alpha", color: .blue, endpoint: session.alpha)
+
+                VStack(spacing: 4) {
+                    Image(systemName: isOneWay ? "arrow.right" : "arrow.left.arrow.right")
+                        .font(.caption)
+                    Text(syncModeLabel)
+                        .font(.system(size: 9))
+                }
+                .foregroundStyle(.secondary)
+                .frame(width: 56)
+                .padding(.top, 16)
+
                 EndpointCard(label: "Beta", color: .purple, endpoint: session.beta)
             }
+        }
+    }
+
+    private var isOneWay: Bool {
+        (session.mode ?? "two-way-safe").hasPrefix("one-way")
+    }
+
+    private var syncModeLabel: String {
+        switch session.mode ?? "two-way-safe" {
+        case "two-way-safe": "Two-Way"
+        case "two-way-resolved": "Resolved"
+        case "one-way-safe": "One-Way"
+        case "one-way-replica": "Replica"
+        default: session.mode ?? "sync"
         }
     }
 
@@ -361,7 +417,7 @@ struct SyncDetailView: View {
     }
 
     private var resolutionGuidance: some View {
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: $showGuidance) {
             VStack(alignment: .leading, spacing: 8) {
                 guidanceRow(
                     icon: "arrow.counterclockwise",
@@ -384,6 +440,8 @@ struct SyncDetailView: View {
             Label("How to resolve conflicts", systemImage: "questionmark.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+                .onTapGesture { showGuidance.toggle() }
         }
     }
 
@@ -403,7 +461,7 @@ struct SyncDetailView: View {
     // MARK: - Danger Zone
 
     private var dangerZone: some View {
-        DisclosureGroup("Danger Zone") {
+        DisclosureGroup(isExpanded: $showDangerZone) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Terminate Session")
@@ -420,6 +478,10 @@ struct SyncDetailView: View {
                 .controlSize(.small)
             }
             .padding(.top, 4)
+        } label: {
+            Text("Danger Zone")
+                .contentShape(Rectangle())
+                .onTapGesture { showDangerZone.toggle() }
         }
         .foregroundStyle(.red)
     }
@@ -446,6 +508,7 @@ private struct EndpointCard: View {
                 Circle()
                     .fill(endpoint.connected == true ? .green : .red)
                     .frame(width: 6, height: 6)
+                    .accessibilityLabel(endpoint.connected == true ? "Connected" : "Disconnected")
             }
 
             LabeledContent("Protocol", value: endpoint.protocol_)
@@ -548,7 +611,7 @@ private struct ConflictCard: View {
                     .disabled(isResolving)
                 }
                 .padding(8)
-                .background(.orange.opacity(0.05))
+                .background(.orange.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
@@ -565,8 +628,12 @@ private struct ConflictCard: View {
             }
         }
         .padding(8)
-        .background(.background)
+        .background(isResolvable ? AnyShapeStyle(.background) : AnyShapeStyle(.orange.opacity(0.03)))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(.orange.opacity(isResolvable ? 0 : 0.3), lineWidth: 1)
+        )
         .task { await loadFileInfo() }
         .alert(
             "Resolve Conflict",
@@ -630,6 +697,7 @@ private struct ConflictCard: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Reveal in Finder")
+                .accessibilityLabel("Reveal in Finder")
             }
             Text("\(conflict.alphaChanges.count + conflict.betaChanges.count) changes")
                 .font(.caption2)

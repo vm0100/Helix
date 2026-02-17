@@ -11,6 +11,7 @@
 		25E1F6397E277CC3433FEFD7 /* HelixApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE5AC6C882BDBCDB4C6C41F /* HelixApp.swift */; };
 		2C39B29DD1F9A46BA758003B /* ForwardDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EF23FC972D666D2E0F4602 /* ForwardDetailView.swift */; };
 		2E94BB0145EB0FDEEB076318 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A907274BFEF61629F49AD6 /* FlowLayout.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* LabelEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6071829A1B2C3A4B5C6 /* LabelEditor.swift */; };
 		3464F8E91741A8BE46F11BA1 /* HelixKit in Frameworks */ = {isa = PBXBuildFile; productRef = 313C9AA3D5A9CD038EF2DF8A /* HelixKit */; };
 		39041BB1D3F0AD49B96A1DF5 /* CreateSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5109622A83040BAC39A7B120 /* CreateSyncView.swift */; };
 		5DDE83060B5C93A12CA7E757 /* SyncModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891C37B09E27AEF0D77BD41B /* SyncModePicker.swift */; };
@@ -21,6 +22,7 @@
 		D30BAB4A4F1C15CE9C3BC537 /* CreateForwardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E457D9C31B4632004EA418 /* CreateForwardView.swift */; };
 		D6E39174181F78868AAB4164 /* MenuBarIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9AD5FE2B0968857037E37A /* MenuBarIcon.swift */; };
 		E358716947520F20E89E74AB /* EndpointPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2402BC4E72318518442C2C7E /* EndpointPicker.swift */; };
+		E3A1B72C5F8D4E09A1C3D5F7 /* RemoteDirectoryBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2E4A91D6C830F5E9A47B1C /* RemoteDirectoryBrowser.swift */; };
 		E4937A08B36ADF273DB76377 /* SyncDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99EC342AC0424116FB8306F1 /* SyncDetailView.swift */; };
 		E5579E550A9541AA50C8AABF /* MenuBarPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C77F55266B4698D2DF5726 /* MenuBarPopover.swift */; };
 		E7C015FB9B4F4EE1F49C764A /* UpdaterButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDF5604DB3B4CB89CAC4109E /* UpdaterButton.swift */; };
@@ -34,10 +36,12 @@
 		01F769F95F310D70A648C305 /* EditSyncConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditSyncConfigView.swift; sourceTree = "<group>"; };
 		078FBE6104B4D999A8FE0701 /* Helix */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Helix; path = .; sourceTree = SOURCE_ROOT; };
 		2402BC4E72318518442C2C7E /* EndpointPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointPicker.swift; sourceTree = "<group>"; };
+		D4E5F6071829A1B2C3A4B5C6 /* LabelEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelEditor.swift; sourceTree = "<group>"; };
 		29E457D9C31B4632004EA418 /* CreateForwardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateForwardView.swift; sourceTree = "<group>"; };
 		2D7EF693C08EE5782628099F /* Helix.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Helix.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C9AD5FE2B0968857037E37A /* MenuBarIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIcon.swift; sourceTree = "<group>"; };
 		5109622A83040BAC39A7B120 /* CreateSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateSyncView.swift; sourceTree = "<group>"; };
+		7B2E4A91D6C830F5E9A47B1C /* RemoteDirectoryBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDirectoryBrowser.swift; sourceTree = "<group>"; };
 		891C37B09E27AEF0D77BD41B /* SyncModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModePicker.swift; sourceTree = "<group>"; };
 		90A907274BFEF61629F49AD6 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		98299D98463E70183BF8406A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -108,7 +112,9 @@
 			children = (
 				2402BC4E72318518442C2C7E /* EndpointPicker.swift */,
 				90A907274BFEF61629F49AD6 /* FlowLayout.swift */,
+				D4E5F6071829A1B2C3A4B5C6 /* LabelEditor.swift */,
 				4C9AD5FE2B0968857037E37A /* MenuBarIcon.swift */,
+				7B2E4A91D6C830F5E9A47B1C /* RemoteDirectoryBrowser.swift */,
 				A7B9C9847DC36C9AEC8903D8 /* StatusBadge.swift */,
 				891C37B09E27AEF0D77BD41B /* SyncModePicker.swift */,
 				EBBC27168C841EDC267E4911 /* SyncOptionsForm.swift */,
@@ -211,6 +217,8 @@
 				F12E925DDD94D208FF2DD028 /* EditSyncConfigView.swift in Sources */,
 				E358716947520F20E89E74AB /* EndpointPicker.swift in Sources */,
 				2E94BB0145EB0FDEEB076318 /* FlowLayout.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* LabelEditor.swift in Sources */,
+				E3A1B72C5F8D4E09A1C3D5F7 /* RemoteDirectoryBrowser.swift in Sources */,
 				2C39B29DD1F9A46BA758003B /* ForwardDetailView.swift in Sources */,
 				25E1F6397E277CC3433FEFD7 /* HelixApp.swift in Sources */,
 				F3FAFAC57C62CB8D271A7787 /* MainWindow.swift in Sources */,

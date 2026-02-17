@@ -11,6 +11,7 @@ public struct SyncSession: Codable, Identifiable, Hashable, Sendable {
     public let creationTime: String
     public let creatingVersion: String
     public let name: String?
+    public let labels: [String: String]?
     public let paused: Bool
     public let status: String
     public let successfulCycles: Int?

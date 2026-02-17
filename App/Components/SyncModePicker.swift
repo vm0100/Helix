@@ -8,9 +8,6 @@ struct SyncModePicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Synchronization Mode")
-                .font(.headline)
-
             ModeOption(
                 mode: "two-way-safe",
                 selected: $selectedMode,

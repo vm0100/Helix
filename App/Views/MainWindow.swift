@@ -10,6 +10,7 @@ enum SidebarFilter: Hashable {
     case forward
     case conflicts
     case paused
+    case label(key: String, value: String)
 }
 
 struct MainWindow: View {
@@ -49,6 +50,7 @@ struct MainWindow: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Create Session")
 
                 Button {
                     Task { await store.manualRefresh() }
@@ -56,6 +58,7 @@ struct MainWindow: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh Sessions")
+                .accessibilityLabel("Refresh Sessions")
 
                 Button {
                     showConsole.toggle()
@@ -63,6 +66,7 @@ struct MainWindow: View {
                     Image(systemName: "terminal")
                 }
                 .help("Toggle Console")
+                .accessibilityLabel("Toggle Console")
 
                 SettingsLink {
                     Image(systemName: "gear")
@@ -104,42 +108,55 @@ struct MainWindow: View {
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        List(selection: $selectedFilter) {
-            Section {
-                Label("All Sessions", systemImage: "list.bullet")
-                    .badge(store.totalSessionCount)
-                    .tag(SidebarFilter.all)
-            }
-
-            Section("Type") {
-                Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                    .badge(store.syncSessions.count)
-                    .tag(SidebarFilter.sync)
-                Label("Forward", systemImage: "network")
-                    .badge(store.forwardSessions.count)
-                    .tag(SidebarFilter.forward)
-            }
-
-            Section("Status") {
-                if store.totalConflictCount > 0 {
-                    Label("Conflicts", systemImage: "exclamationmark.triangle")
-                        .badge(store.totalConflictCount)
-                        .tag(SidebarFilter.conflicts)
+        VStack(spacing: 0) {
+            List(selection: $selectedFilter) {
+                Section {
+                    Label("All Sessions", systemImage: "list.bullet")
+                        .badge(store.totalSessionCount)
+                        .tag(SidebarFilter.all)
                 }
-                let pausedCount = store.syncSessions.filter(\.paused).count
-                    + store.forwardSessions.filter(\.paused).count
-                if pausedCount > 0 {
-                    Label("Paused", systemImage: "pause.circle")
-                        .badge(pausedCount)
-                        .tag(SidebarFilter.paused)
+
+                Section("Type") {
+                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                        .badge(store.syncSessions.count)
+                        .tag(SidebarFilter.sync)
+                    Label("Forward", systemImage: "network")
+                        .badge(store.forwardSessions.count)
+                        .tag(SidebarFilter.forward)
+                }
+
+                Section("Status") {
+                    if store.totalConflictCount > 0 {
+                        Label("Conflicts", systemImage: "exclamationmark.triangle")
+                            .badge(store.totalConflictCount)
+                            .tag(SidebarFilter.conflicts)
+                    }
+                    let pausedCount = store.syncSessions.filter(\.paused).count
+                        + store.forwardSessions.filter(\.paused).count
+                    if pausedCount > 0 {
+                        Label("Paused", systemImage: "pause.circle")
+                            .badge(pausedCount)
+                            .tag(SidebarFilter.paused)
+                    }
+                }
+
+                if !allLabels.isEmpty {
+                    Section("Labels") {
+                        ForEach(allLabels, id: \.self) { pair in
+                            Label("\(pair.key)=\(pair.value)", systemImage: "tag")
+                                .badge(labelCount(key: pair.key, value: pair.value))
+                                .tag(SidebarFilter.label(key: pair.key, value: pair.value))
+                        }
+                    }
                 }
             }
+            .listStyle(.sidebar)
 
-            Section {
-                DaemonStatusView(running: store.daemonRunning)
-            }
+            Divider()
+            DaemonStatusView(running: store.daemonRunning)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
         }
-        .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 250)
     }
 
@@ -212,6 +229,8 @@ struct MainWindow: View {
             sessions = sessions.filter { ($0.conflicts?.count ?? 0) > 0 }
         case .paused:
             sessions = sessions.filter(\.paused)
+        case .label(let key, let value):
+            sessions = sessions.filter { $0.labels?[key] == value }
         case .all, .sync:
             break
         }
@@ -222,6 +241,10 @@ struct MainWindow: View {
                 || session.identifier.localizedCaseInsensitiveContains(searchText)
                 || (session.alpha.path?.localizedCaseInsensitiveContains(searchText) ?? false)
                 || (session.beta.path?.localizedCaseInsensitiveContains(searchText) ?? false)
+                || (session.labels?.contains(where: {
+                    $0.key.localizedCaseInsensitiveContains(searchText)
+                    || $0.value.localizedCaseInsensitiveContains(searchText)
+                }) ?? false)
             }
         }
 
@@ -236,6 +259,8 @@ struct MainWindow: View {
             return []
         case .paused:
             sessions = sessions.filter(\.paused)
+        case .label(let key, let value):
+            sessions = sessions.filter { $0.labels?[key] == value }
         case .all, .forward:
             break
         }
@@ -244,10 +269,42 @@ struct MainWindow: View {
             sessions = sessions.filter { session in
                 (session.name?.localizedCaseInsensitiveContains(searchText) ?? false)
                 || session.identifier.localizedCaseInsensitiveContains(searchText)
+                || (session.labels?.contains(where: {
+                    $0.key.localizedCaseInsensitiveContains(searchText)
+                    || $0.value.localizedCaseInsensitiveContains(searchText)
+                }) ?? false)
             }
         }
 
         return sessions
+    }
+
+    // MARK: - Label Helpers
+
+    private struct LabelPair: Hashable {
+        let key: String
+        let value: String
+    }
+
+    private var allLabels: [LabelPair] {
+        var pairs = Set<LabelPair>()
+        for session in store.syncSessions {
+            for (key, value) in session.labels ?? [:] {
+                pairs.insert(LabelPair(key: key, value: value))
+            }
+        }
+        for session in store.forwardSessions {
+            for (key, value) in session.labels ?? [:] {
+                pairs.insert(LabelPair(key: key, value: value))
+            }
+        }
+        return pairs.sorted { $0.key == $1.key ? $0.value < $1.value : $0.key < $1.key }
+    }
+
+    private func labelCount(key: String, value: String) -> Int {
+        let syncCount = store.syncSessions.filter { $0.labels?[key] == value }.count
+        let fwdCount = store.forwardSessions.filter { $0.labels?[key] == value }.count
+        return syncCount + fwdCount
     }
 }
 
@@ -284,6 +341,20 @@ private struct SyncListRow: View {
                         .foregroundStyle(isSelected ? .white.opacity(0.7) : .purple)
                 }
                 .font(.caption)
+
+                if let labels = session.labels, !labels.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(labels.values.sorted(), id: \.self) { value in
+                            Text(value)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(isSelected ? .white.opacity(0.2) : .blue.opacity(0.1))
+                                .foregroundStyle(isSelected ? .white.opacity(0.9) : .blue)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
             }
 
             Spacer()
@@ -335,6 +406,20 @@ private struct ForwardListRow: View {
                 Text("\(session.sourceEndpoint ?? "?") -> \(session.destinationEndpoint ?? "?")")
                     .font(.caption)
                     .foregroundStyle(isSelected ? .white.opacity(0.7) : .secondary)
+
+                if let labels = session.labels, !labels.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(labels.values.sorted(), id: \.self) { value in
+                            Text(value)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(isSelected ? .white.opacity(0.2) : .blue.opacity(0.1))
+                                .foregroundStyle(isSelected ? .white.opacity(0.9) : .blue)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
             }
 
             Spacer()
@@ -367,5 +452,6 @@ private struct DaemonStatusView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 }

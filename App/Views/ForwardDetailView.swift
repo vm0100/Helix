@@ -8,6 +8,9 @@ struct ForwardDetailView: View {
     let session: ForwardSession
     let store: SessionStore
     @State private var showTerminateConfirmation = false
+    @State private var showSocket = false
+    @State private var showDangerZone = false
+    @State private var actionInProgress: String?
 
     var body: some View {
         ScrollView {
@@ -44,14 +47,21 @@ struct ForwardDetailView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
+                    if actionInProgress != nil {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+
                     if session.paused {
                         Button("Resume") {
-                            Task { await store.resumeForward(session.identifier) }
+                            Task { await runAction("resume") { await store.resumeForward(session.identifier) } }
                         }
+                        .disabled(actionInProgress != nil)
                     } else {
                         Button("Pause") {
-                            Task { await store.pauseForward(session.identifier) }
+                            Task { await runAction("pause") { await store.pauseForward(session.identifier) } }
                         }
+                        .disabled(actionInProgress != nil)
                     }
                 }
                 .controlSize(.small)
@@ -72,7 +82,27 @@ struct ForwardDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if let labels = session.labels, !labels.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(labels.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        Text("\(key): \(value)")
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.blue.opacity(0.1))
+                            .foregroundStyle(.blue)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
         }
+    }
+
+    private func runAction(_ name: String, _ action: () async -> Void) async {
+        actionInProgress = name
+        await action()
+        actionInProgress = nil
     }
 
     private var endpointsSection: some View {
@@ -80,15 +110,26 @@ struct ForwardDetailView: View {
             Text("Endpoints")
                 .font(.headline)
 
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 0) {
                 ForwardEndpointCard(label: "Source", endpoint: session.source, address: session.sourceEndpoint)
+
+                VStack(spacing: 4) {
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                    Text("Forward")
+                        .font(.system(size: 9))
+                }
+                .foregroundStyle(.secondary)
+                .frame(width: 56)
+                .padding(.top, 16)
+
                 ForwardEndpointCard(label: "Destination", endpoint: session.destination, address: session.destinationEndpoint)
             }
         }
     }
 
     private func socketSection(_ socket: SocketConfig) -> some View {
-        DisclosureGroup("Socket Configuration") {
+        DisclosureGroup(isExpanded: $showSocket) {
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                 if let mode = socket.overwriteMode {
                     GridRow {
@@ -111,11 +152,15 @@ struct ForwardDetailView: View {
             }
             .font(.caption)
             .padding(.top, 4)
+        } label: {
+            Text("Socket Configuration")
+                .contentShape(Rectangle())
+                .onTapGesture { showSocket.toggle() }
         }
     }
 
     private var dangerZone: some View {
-        DisclosureGroup("Danger Zone") {
+        DisclosureGroup(isExpanded: $showDangerZone) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Terminate Session")
@@ -132,6 +177,10 @@ struct ForwardDetailView: View {
                 .controlSize(.small)
             }
             .padding(.top, 4)
+        } label: {
+            Text("Danger Zone")
+                .contentShape(Rectangle())
+                .onTapGesture { showDangerZone.toggle() }
         }
         .foregroundStyle(.red)
     }
@@ -153,6 +202,7 @@ private struct ForwardEndpointCard: View {
                 Circle()
                     .fill(endpoint.connected == true ? .green : .red)
                     .frame(width: 6, height: 6)
+                    .accessibilityLabel(endpoint.connected == true ? "Connected" : "Disconnected")
             }
 
             LabeledContent("Transport", value: endpoint.protocol_)
