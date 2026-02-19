@@ -29,10 +29,12 @@ public struct Endpoint: Codable, Hashable, Sendable {
         case "docker":
             return host ?? "docker"
         default:
+            let hostName = ProcessInfo.processInfo.hostName
+                .replacingOccurrences(of: ".local", with: "")
             if let path, let last = path.split(separator: "/").last {
-                return String(last)
+                return "\(hostName):\(last)"
             }
-            return "local"
+            return hostName
         }
     }
 

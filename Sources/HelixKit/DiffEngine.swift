@@ -30,11 +30,6 @@ public struct InlineChunkResult: Sendable {
     public let text: String
 }
 
-public struct MergeOutput: Sendable {
-    public let succeeded: Bool
-    public let text: String
-}
-
 // MARK: - Engine
 
 public enum DiffEngine {
@@ -114,28 +109,6 @@ public enum DiffEngine {
                     chunks.append(InlineChunkResult(tag: tag, text: text))
                 }
                 return chunks
-            }
-        }
-    }
-
-    /// Performs a 3-way merge given a common ancestor and two modified versions.
-    public static func merge3(base: String, a: String, b: String) -> MergeOutput {
-        base.withCString { basePtr in
-            a.withCString { aPtr in
-                b.withCString { bPtr in
-                    guard let resultPtr = helix_merge3(
-                        basePtr, UInt32(base.utf8.count),
-                        aPtr, UInt32(a.utf8.count),
-                        bPtr, UInt32(b.utf8.count)
-                    ) else {
-                        return MergeOutput(succeeded: false, text: "")
-                    }
-                    defer { helix_merge_free(resultPtr) }
-
-                    let result = resultPtr.pointee
-                    let text = stringFromCPtr(result.merged, length: result.merged_len)
-                    return MergeOutput(succeeded: result.status == 0, text: text)
-                }
             }
         }
     }

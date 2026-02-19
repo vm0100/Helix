@@ -42,6 +42,9 @@ struct ConsoleView: View {
 
                     Color.clear.frame(height: 0).id("bottom")
                 }
+                .onAppear {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
                 .onChange(of: console.entries.count) {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }

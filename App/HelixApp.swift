@@ -7,6 +7,7 @@ import HelixKit
 
 @main
 struct HelixApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var store: SessionStore
     private let updaterController: SPUStandardUpdaterController
 
@@ -34,12 +35,18 @@ struct HelixApp: App {
 
         Window("Helix", id: "main") {
             MainWindow(store: store)
-                .textSizeModifier()
         }
         .defaultSize(width: 800, height: 560)
         .commands {
             SessionCommands(store: store)
         }
+
+        WindowGroup("Diff", for: DiffRequest.self) { $request in
+            if let request {
+                DiffWindowContent(request: request, store: store)
+            }
+        }
+        .defaultSize(width: 900, height: 600)
 
         Settings {
             SettingsView(store: store, updater: updaterController.updater)
@@ -49,36 +56,6 @@ struct HelixApp: App {
                 CheckForUpdatesButton(updater: updaterController.updater)
             }
         }
-    }
-}
-
-// MARK: - Text Size
-
-struct TextSizeModifier: ViewModifier {
-    @AppStorage("textSize") private var textSize = "system"
-
-    func body(content: Content) -> some View {
-        if let size = dynamicTypeSize {
-            content.dynamicTypeSize(size)
-        } else {
-            content
-        }
-    }
-
-    private var dynamicTypeSize: DynamicTypeSize? {
-        switch textSize {
-        case "small": .small
-        case "medium": .medium
-        case "large": .large
-        case "xLarge": .xLarge
-        default: nil
-        }
-    }
-}
-
-extension View {
-    func textSizeModifier() -> some View {
-        modifier(TextSizeModifier())
     }
 }
 
@@ -132,5 +109,33 @@ extension FocusedValues {
     var showCreateForward: Binding<Bool>? {
         get { self[ShowCreateForwardKey.self] }
         set { self[ShowCreateForwardKey.self] = newValue }
+    }
+}
+
+// MARK: - Dynamic Dock Icon
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let nc = NotificationCenter.default
+        nc.addObserver(forName: NSWindow.didBecomeMainNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.updateDockVisibility()
+        }
+        nc.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.updateDockVisibility()
+            }
+        }
+    }
+
+    private func updateDockVisibility() {
+        let hasWindows = NSApp.windows.contains { window in
+            window.isVisible && window.styleMask.contains(.titled) && !(window is NSPanel)
+        }
+        let policy: NSApplication.ActivationPolicy = hasWindows ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        if policy == .regular {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }

@@ -91,29 +91,36 @@ public final class SessionStore {
 
     public func refresh() async {
         do {
-            daemonRunning = try await provider.daemonRunning()
+            async let syncs = provider.syncList()
+            async let forwards = provider.forwardList()
+            let newSyncs = try await syncs
+            let newForwards = try await forwards
+            if syncDigest(newSyncs) != syncDigest(syncSessions) { syncSessions = newSyncs }
+            if forwardDigest(newForwards) != forwardDigest(forwardSessions) { forwardSessions = newForwards }
+            if !daemonRunning { daemonRunning = true }
+            if lastError != nil { lastError = nil }
         } catch {
-            daemonRunning = false
+            if !daemonRunning || lastError != error.localizedDescription {
+                daemonRunning = false
+                lastError = error.localizedDescription
+            }
         }
+    }
 
-        guard daemonRunning else {
-            lastError = "Daemon not running"
-            return
-        }
-
+    public func manualRefresh() async {
         do {
             async let syncs = provider.syncList()
             async let forwards = provider.forwardList()
             syncSessions = try await syncs
             forwardSessions = try await forwards
-            lastError = nil
+            if !daemonRunning { daemonRunning = true }
+            if lastError != nil { lastError = nil }
         } catch {
-            lastError = error.localizedDescription
+            if !daemonRunning || lastError != error.localizedDescription {
+                daemonRunning = false
+                lastError = error.localizedDescription
+            }
         }
-    }
-
-    public func manualRefresh() async {
-        await refresh()
         refreshCount += 1
     }
 
@@ -310,11 +317,28 @@ public final class SessionStore {
         let winnerDeletedRoot = winnerChanges.contains { $0.path == conflict.root && $0.new == nil }
         ConsoleLog.shared.log("  winnerDeletedRoot: \(winnerDeletedRoot)")
 
+        // Pause the session to prevent mutagen from syncing while we modify files
+        do {
+            try await provider.syncPause(session.identifier)
+            ConsoleLog.shared.log("  paused session")
+        } catch {
+            ConsoleLog.shared.log("  pause FAILED: \(error.localizedDescription)", level: .error)
+            lastError = "Failed to pause session: \(error.localizedDescription)"
+            return
+        }
+
         do {
             if winnerDeletedRoot {
                 ConsoleLog.shared.log("  action: REMOVE \(loserURL.formatted)")
                 try await fileTransport.remove(endpoint: loserURL)
             } else {
+                let exists = try await fileTransport.pathExists(endpoint: winnerURL)
+                guard exists else {
+                    ConsoleLog.shared.log("  winner file no longer exists at \(winnerURL.formatted)", level: .error)
+                    lastError = "The file \"\(conflict.root)\" no longer exists at the source. It may have been renamed or deleted. Try refreshing sessions."
+                    try? await provider.syncResume(session.identifier)
+                    return
+                }
                 ConsoleLog.shared.log("  action: REMOVE \(loserURL.formatted) then COPY \(winnerURL.formatted)")
                 try await fileTransport.remove(endpoint: loserURL)
                 try await fileTransport.copy(from: winnerURL, to: loserURL)
@@ -323,10 +347,14 @@ public final class SessionStore {
         } catch {
             ConsoleLog.shared.log("  transport FAILED: \(error.localizedDescription)", level: .error)
             lastError = error.localizedDescription
+            try? await provider.syncResume(session.identifier)
             return
         }
 
+        // Resume and flush to let mutagen re-scan with the resolved state
         do {
+            try await provider.syncResume(session.identifier)
+            ConsoleLog.shared.log("  resumed session")
             try await provider.syncFlush(session.identifier)
             ConsoleLog.shared.log("  flush succeeded")
             lastError = nil
@@ -338,6 +366,73 @@ public final class SessionStore {
                conflicts.contains(where: { $0.root == conflict.root }) {
                 ConsoleLog.shared.log("  conflict persisted after flush for '\(conflict.root)'", level: .error)
                 lastError = "Conflict \"\(conflict.root)\" could not be resolved. The file may be a symlink or have special attributes that prevent copying."
+            }
+        } catch {
+            ConsoleLog.shared.log("  flush FAILED: \(error.localizedDescription)", level: .error)
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func resolveConflicts(
+        session: SyncSession,
+        conflicts: [Conflict],
+        winner: ConflictWinner
+    ) async {
+        guard !conflicts.isEmpty else { return }
+
+        ConsoleLog.shared.log("resolveConflicts: \(winner) wins for \(conflicts.count) conflicts")
+
+        do {
+            try await provider.syncPause(session.identifier)
+            ConsoleLog.shared.log("  paused session")
+        } catch {
+            ConsoleLog.shared.log("  pause FAILED: \(error.localizedDescription)", level: .error)
+            lastError = "Failed to pause session: \(error.localizedDescription)"
+            return
+        }
+
+        var resolved = 0
+        var failed = 0
+        for conflict in conflicts {
+            let alphaURL = appendingSubpath(to: session.alpha.endpointURL, subpath: conflict.root)
+            let betaURL = appendingSubpath(to: session.beta.endpointURL, subpath: conflict.root)
+            let (winnerURL, loserURL) = switch winner {
+            case .alpha: (alphaURL, betaURL)
+            case .beta: (betaURL, alphaURL)
+            }
+            let winnerChanges = winner == .alpha ? conflict.alphaChanges : conflict.betaChanges
+            let winnerDeletedRoot = winnerChanges.contains { $0.path == conflict.root && $0.new == nil }
+
+            do {
+                if winnerDeletedRoot {
+                    try await fileTransport.remove(endpoint: loserURL)
+                } else {
+                    let exists = try await fileTransport.pathExists(endpoint: winnerURL)
+                    guard exists else {
+                        ConsoleLog.shared.log("  skipped '\(conflict.root)': winner file no longer exists", level: .error)
+                        failed += 1
+                        continue
+                    }
+                    try await fileTransport.remove(endpoint: loserURL)
+                    try await fileTransport.copy(from: winnerURL, to: loserURL)
+                }
+                resolved += 1
+            } catch {
+                ConsoleLog.shared.log("  failed '\(conflict.root)': \(error.localizedDescription)", level: .error)
+                failed += 1
+            }
+        }
+
+        ConsoleLog.shared.log("  resolved \(resolved)/\(conflicts.count) conflicts (\(failed) failed)")
+
+        do {
+            try await provider.syncResume(session.identifier)
+            try await provider.syncFlush(session.identifier)
+            lastError = nil
+            await refresh()
+
+            if failed > 0 {
+                lastError = "\(failed) of \(conflicts.count) conflicts could not be resolved."
             }
         } catch {
             ConsoleLog.shared.log("  flush FAILED: \(error.localizedDescription)", level: .error)
@@ -521,6 +616,36 @@ public final class SessionStore {
     }
 
     // MARK: - Private
+
+    /// Hashes fields that affect the UI (identity, status, conflicts, connectivity).
+    /// Excludes volatile counters like successfulCycles and endpoint scan statistics
+    /// that change every mutagen scan cycle.
+    private func syncDigest(_ sessions: [SyncSession]) -> Int {
+        var hasher = Hasher()
+        for s in sessions {
+            hasher.combine(s.identifier)
+            hasher.combine(s.name)
+            hasher.combine(s.status)
+            hasher.combine(s.paused)
+            hasher.combine(s.mode)
+            hasher.combine(s.conflicts?.count ?? 0)
+            hasher.combine(s.alpha.connected)
+            hasher.combine(s.beta.connected)
+        }
+        return hasher.finalize()
+    }
+
+    private func forwardDigest(_ sessions: [ForwardSession]) -> Int {
+        var hasher = Hasher()
+        for s in sessions {
+            hasher.combine(s.identifier)
+            hasher.combine(s.name)
+            hasher.combine(s.paused)
+            hasher.combine(s.source.connected)
+            hasher.combine(s.destination.connected)
+        }
+        return hasher.finalize()
+    }
 
     private func performAction(_ action: @Sendable () async throws -> Void) async {
         do {

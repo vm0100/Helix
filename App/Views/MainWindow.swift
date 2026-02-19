@@ -22,6 +22,7 @@ struct MainWindow: View {
     @State private var showCreateSync = false
     @State private var showCreateForward = false
     @AppStorage("showConsole") private var showConsole = false
+    @State private var labelsExpanded = true
 
     var body: some View {
         VSplitView {
@@ -86,7 +87,9 @@ struct MainWindow: View {
         }
         .onChange(of: store.syncSessions) {
             guard let selected = selectedSyncSession else { return }
-            selectedSyncSession = store.syncSessions.first { $0.identifier == selected.identifier }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                selectedSyncSession = store.syncSessions.first { $0.identifier == selected.identifier }
+            }
         }
         .onChange(of: store.forwardSessions) {
             guard let selected = selectedForwardSession else { return }
@@ -141,7 +144,7 @@ struct MainWindow: View {
                 }
 
                 if !allLabels.isEmpty {
-                    Section("Labels") {
+                    Section("Labels", isExpanded: $labelsExpanded) {
                         ForEach(allLabels, id: \.self) { pair in
                             Label("\(pair.key)=\(pair.value)", systemImage: "tag")
                                 .badge(labelCount(key: pair.key, value: pair.value))

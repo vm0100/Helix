@@ -3,10 +3,12 @@
 
 import Foundation
 
-public struct Conflict: Codable, Hashable, Sendable {
+public struct Conflict: Codable, Hashable, Sendable, Identifiable {
     public let root: String
     public let alphaChanges: [Change]
     public let betaChanges: [Change]
+
+    public var id: String { root }
 }
 
 public struct Change: Codable, Hashable, Sendable {

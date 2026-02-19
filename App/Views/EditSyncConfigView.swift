@@ -18,6 +18,7 @@ struct EditSyncConfigView: View {
     @State private var watchMode: String
     @State private var stageMode: String
     @State private var isApplying = false
+    @State private var labelsExpanded = true
 
     init(session: SyncSession, store: SessionStore) {
         self.session = session
@@ -41,7 +42,7 @@ struct EditSyncConfigView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     endpointSummary
 
-                    DisclosureGroup {
+                    DisclosureGroup(isExpanded: $labelsExpanded) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Tag sessions for filtering and batch operations.")
                                 .font(.caption2)
@@ -65,6 +66,8 @@ struct EditSyncConfigView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
+                        .onTapGesture { labelsExpanded.toggle() }
                     }
 
                     Text("Synchronization Mode")

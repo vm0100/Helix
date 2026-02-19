@@ -27,6 +27,7 @@ struct CreateForwardView: View {
     @State private var labels: [String: String] = [:]
     @State private var createPaused = false
     @State private var isCreating = false
+    @State private var labelsExpanded = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +40,7 @@ struct CreateForwardView: View {
                     TextField("Session Name (optional)", text: $sessionName)
                         .textFieldStyle(.roundedBorder)
 
-                    DisclosureGroup {
+                    DisclosureGroup(isExpanded: $labelsExpanded) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Tag sessions for filtering and batch operations.")
                                 .font(.caption2)
@@ -62,6 +63,8 @@ struct CreateForwardView: View {
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
+                        .onTapGesture { labelsExpanded.toggle() }
                     }
 
                     sourceSection

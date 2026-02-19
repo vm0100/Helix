@@ -4,7 +4,42 @@
 import SwiftUI
 import HelixKit
 
-struct DiffSheet: View {
+// MARK: - Window Data
+
+struct DiffRequest: Codable, Hashable {
+    let sessionIdentifier: String
+    let conflictRoot: String
+}
+
+struct DiffWindowContent: View {
+    let request: DiffRequest
+    let store: SessionStore
+
+    private var session: SyncSession? {
+        store.syncSessions.first { $0.identifier == request.sessionIdentifier }
+    }
+
+    private var conflict: Conflict? {
+        session?.conflicts?.first { $0.root == request.conflictRoot }
+    }
+
+    var body: some View {
+        if let session, let conflict {
+            DiffView(session: session, conflict: conflict, store: store)
+                .navigationTitle(conflict.root)
+        } else {
+            ContentUnavailableView(
+                "Conflict Resolved",
+                systemImage: "checkmark.circle",
+                description: Text("This conflict no longer exists.")
+            )
+        }
+    }
+}
+
+// MARK: - Diff View
+
+struct DiffView: View {
     let session: SyncSession
     let conflict: Conflict
     let store: SessionStore
@@ -13,32 +48,37 @@ struct DiffSheet: View {
     @State private var rows: [DiffRow] = []
     @State private var isLoading = true
     @State private var error: String?
+    @State private var pendingWinner: ConflictWinner?
+    @State private var isResolving = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            Divider()
-            content
-        }
-        .frame(minWidth: 700, idealWidth: 900, minHeight: 400, idealHeight: 600)
-        .task { await loadDiff() }
-    }
-
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        HStack {
-            Image(systemName: "doc.text")
-                .foregroundStyle(.orange)
-            Text(conflict.root)
-                .font(.headline)
-                .monospaced()
-            Spacer()
-            Button("Done") { dismiss() }
-                .keyboardShortcut(.cancelAction)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
+        content
+            .frame(minWidth: 600, minHeight: 400)
+            .task { await loadDiff() }
+            .alert(
+                "Resolve Conflict",
+                isPresented: Binding(
+                    get: { pendingWinner != nil },
+                    set: { if !$0 { pendingWinner = nil } }
+                )
+            ) {
+                Button("Replace", role: .destructive) {
+                    guard let winner = pendingWinner else { return }
+                    pendingWinner = nil
+                    Task {
+                        isResolving = true
+                        await store.resolveConflict(session: session, conflict: conflict, winner: winner)
+                        isResolving = false
+                        dismiss()
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingWinner = nil
+                }
+            } message: {
+                let loserLabel = pendingWinner == .alpha ? "Beta" : "Alpha"
+                Text("This will permanently delete the \(loserLabel) version of \"\(conflict.root)\" and replace it with the selected side.")
+            }
     }
 
     // MARK: - Content
@@ -112,7 +152,42 @@ struct DiffSheet: View {
                     }
                 }
             }
+            Divider()
+            resolutionBar
         }
+    }
+
+    private var resolutionBar: some View {
+        HStack(spacing: 0) {
+            if isResolving {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Resolving...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(8)
+            } else {
+                Button { pendingWinner = .alpha } label: {
+                    Label("Keep Alpha", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .padding(8)
+
+                Button { pendingWinner = .beta } label: {
+                    Label("Keep Beta", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .padding(8)
+            }
+        }
+        .background(.background.secondary)
     }
 
     private var columnHeaders: some View {

@@ -1,5 +1,5 @@
 // ABOUTME: Generated C header for the helix-diff Rust library.
-// ABOUTME: Provides line-level, character-level, and 3-way merge diff functions.
+// ABOUTME: Provides line-level and character-level diff functions.
 
 #ifndef HELIX_DIFF_H
 #define HELIX_DIFF_H
@@ -48,15 +48,6 @@ typedef struct InlineResult {
   uint32_t chunk_count;
 } InlineResult;
 
-typedef struct MergeResult {
-  /**
-   * 0 = success (merged contains result), 1 = conflict (merged contains conflict markers)
-   */
-  uint8_t status;
-  char *merged;
-  uint32_t merged_len;
-} MergeResult;
-
 struct DiffResult *helix_diff_lines(const char *old_ptr,
                                     uint32_t old_len,
                                     const char *new_ptr,
@@ -68,17 +59,8 @@ struct InlineResult *helix_diff_chars(const char *old_ptr,
                                       const char *new_ptr,
                                       uint32_t new_len);
 
-struct MergeResult *helix_merge3(const char *base_ptr,
-                                 uint32_t base_len,
-                                 const char *a_ptr,
-                                 uint32_t a_len,
-                                 const char *b_ptr,
-                                 uint32_t b_len);
-
 void helix_diff_free(struct DiffResult *ptr);
 
 void helix_inline_free(struct InlineResult *ptr);
-
-void helix_merge_free(struct MergeResult *ptr);
 
 #endif  /* HELIX_DIFF_H */

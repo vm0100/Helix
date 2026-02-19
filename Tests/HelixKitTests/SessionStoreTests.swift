@@ -23,8 +23,14 @@ struct FakeProvider: SessionProvider {
         self.mutagenVersion = mutagenVersion
     }
 
-    func syncList() async throws -> [SyncSession] { syncSessions }
-    func forwardList() async throws -> [ForwardSession] { forwardSessions }
+    func syncList() async throws -> [SyncSession] {
+        guard isDaemonRunning else { throw CLIError(exitCode: 1, stderr: "Daemon not running") }
+        return syncSessions
+    }
+    func forwardList() async throws -> [ForwardSession] {
+        guard isDaemonRunning else { throw CLIError(exitCode: 1, stderr: "Daemon not running") }
+        return forwardSessions
+    }
     func daemonRunning() async throws -> Bool { isDaemonRunning }
     func version() async throws -> String { mutagenVersion }
     func syncCreate(arguments: [String]) async throws {}
@@ -498,12 +504,15 @@ struct ConflictResolutionTests {
         await store.resolveConflict(session: session, conflict: conflict, winner: .alpha)
 
         #expect(store.lastError == nil)
-        // Should remove loser then copy winner
-        #expect(copyRecorder.commands.count == 2)
-        let rm = copyRecorder.commands[0]
+        // Should check winner exists, remove loser, then copy winner
+        #expect(copyRecorder.commands.count == 3)
+        let check = copyRecorder.commands[0]
+        #expect(check.executable == "/bin/test")
+        #expect(check.arguments == ["-e", "/tmp/a/file.txt"])
+        let rm = copyRecorder.commands[1]
         #expect(rm.executable == "/bin/rm")
         #expect(rm.arguments == ["-rf", "/tmp/b/file.txt"])
-        let cp = copyRecorder.commands[1]
+        let cp = copyRecorder.commands[2]
         #expect(cp.executable == "/bin/cp")
         #expect(cp.arguments == ["-Rp", "/tmp/a/file.txt", "/tmp/b/file.txt"])
         // Should have flushed
@@ -526,10 +535,12 @@ struct ConflictResolutionTests {
         await store.resolveConflict(session: session, conflict: conflict, winner: .beta)
 
         #expect(store.lastError == nil)
-        #expect(copyRecorder.commands.count == 2)
-        let rm = copyRecorder.commands[0]
+        #expect(copyRecorder.commands.count == 3)
+        let check = copyRecorder.commands[0]
+        #expect(check.arguments == ["-e", "/tmp/b/data.json"])
+        let rm = copyRecorder.commands[1]
         #expect(rm.arguments == ["-rf", "/tmp/a/data.json"])
-        let cp = copyRecorder.commands[1]
+        let cp = copyRecorder.commands[2]
         // Beta (/tmp/b) -> Alpha (/tmp/a)
         #expect(cp.arguments == ["-Rp", "/tmp/b/data.json", "/tmp/a/data.json"])
     }
@@ -549,8 +560,8 @@ struct ConflictResolutionTests {
         await store.resolveConflict(session: session, conflict: conflict, winner: .alpha)
 
         #expect(store.lastError?.contains("could not be resolved") == true)
-        // Transport and flush should still have been attempted
-        #expect(copyRecorder.commands.count == 2)
+        // Transport and flush should still have been attempted (check + rm + cp)
+        #expect(copyRecorder.commands.count == 3)
         let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
         #expect(flushCalls.count == 1)
     }
@@ -561,7 +572,9 @@ struct ConflictResolutionTests {
         let conflict = Conflict(root: "file.txt", alphaChanges: [], betaChanges: [])
         let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
         let recorder = RecordingProvider(syncSessions: [session])
-        let transport = FileTransport { _, _ in
+        let transport = FileTransport { executable, arguments in
+            // pathExists check succeeds
+            if executable == "/bin/test" && arguments.contains("-e") { return "" }
             throw CLIError(exitCode: 1, stderr: "permission denied")
         }
         let store = SessionStore(provider: recorder, fileTransport: transport)
@@ -602,6 +615,60 @@ struct ConflictResolutionTests {
         #expect(cmd.executable == "/bin/rm")
         #expect(cmd.arguments == ["-rf", "/tmp/b/alimentara"])
         // Should have flushed
+        let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
+        #expect(flushCalls.count == 1)
+    }
+
+    @Test("Winner file not found aborts without removing loser")
+    @MainActor
+    func winnerNotFound() async {
+        let conflict = Conflict(root: "deleted.swift", alphaChanges: [], betaChanges: [])
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+        let recorder = RecordingProvider(syncSessions: [session])
+        let cmdRecorder = CommandRecorder()
+        let transport = FileTransport { executable, arguments in
+            if executable == "/bin/test" && arguments.contains("-e") {
+                throw CLIError(exitCode: 1, stderr: "")
+            }
+            return try await cmdRecorder.execute(executable, arguments)
+        }
+        let store = SessionStore(provider: recorder, fileTransport: transport)
+        await store.refresh()
+
+        await store.resolveConflict(session: session, conflict: conflict, winner: .alpha)
+
+        #expect(store.lastError?.contains("no longer exists") == true)
+        // Should NOT have removed or copied anything
+        #expect(cmdRecorder.commands.isEmpty)
+        // Should NOT have flushed
+        let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
+        #expect(flushCalls.isEmpty)
+    }
+
+    @Test("Bulk resolve pauses once, resolves all, then resumes and flushes once")
+    @MainActor
+    func bulkResolve() async {
+        let c1 = Conflict(root: "a.txt", alphaChanges: [], betaChanges: [])
+        let c2 = Conflict(root: "b.txt", alphaChanges: [], betaChanges: [])
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [c1, c2])
+        let resolvedSession = makeSyncSession(id: "sync_1", name: "s1")
+        let recorder = RecordingProvider(syncSessions: [session], resolvedSyncSessions: [resolvedSession])
+        let cmdRecorder = CommandRecorder()
+        let transport = FileTransport(execute: cmdRecorder.execute)
+        let store = SessionStore(provider: recorder, fileTransport: transport)
+        await store.refresh()
+
+        await store.resolveConflicts(session: session, conflicts: [c1, c2], winner: .alpha)
+
+        #expect(store.lastError == nil)
+        // Should have: test -e a, rm b/a, cp a/a→b/a, test -e b, rm b/b, cp a/b→b/b (6 commands)
+        #expect(cmdRecorder.commands.count == 6)
+        // Verify both files were resolved
+        let rmCommands = cmdRecorder.commands.filter { $0.executable == "/bin/rm" }
+        #expect(rmCommands.count == 2)
+        let cpCommands = cmdRecorder.commands.filter { $0.executable == "/bin/cp" }
+        #expect(cpCommands.count == 2)
+        // Should have flushed once
         let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
         #expect(flushCalls.count == 1)
     }

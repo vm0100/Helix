@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the DiffEngine Swift wrapper over the Rust diff library.
-// ABOUTME: Validates line-level diff, character-level diff, and 3-way merge via FFI.
+// ABOUTME: Validates line-level diff and character-level diff via FFI.
 
 import Testing
 @testable import HelixKit
@@ -106,43 +106,5 @@ struct DiffEngineCharsTests {
         #expect(chunks.count == 1)
         #expect(chunks[0].tag == .insert)
         #expect(chunks[0].text == "hello")
-    }
-}
-
-@Suite("DiffEngine 3-way merge")
-struct DiffEngineMergeTests {
-
-    @Test("Merges non-conflicting changes")
-    func cleanMerge() {
-        let base = "line1\nline2\nline3\n"
-        let a = "line1\nmodified\nline3\n"
-        let b = "line1\nline2\nline3\nnew line\n"
-
-        let result = DiffEngine.merge3(base: base, a: a, b: b)
-        #expect(result.succeeded)
-        #expect(result.text.contains("modified"))
-        #expect(result.text.contains("new line"))
-    }
-
-    @Test("Detects conflicting changes")
-    func conflictingMerge() {
-        let base = "line1\nline2\nline3\n"
-        let a = "line1\nalpha\nline3\n"
-        let b = "line1\nbeta\nline3\n"
-
-        let result = DiffEngine.merge3(base: base, a: a, b: b)
-        #expect(!result.succeeded)
-        #expect(result.text.contains("<<<<<<<"))
-    }
-
-    @Test("Identical modifications merge cleanly")
-    func identicalChanges() {
-        let base = "line1\nline2\n"
-        let a = "line1\nchanged\n"
-        let b = "line1\nchanged\n"
-
-        let result = DiffEngine.merge3(base: base, a: a, b: b)
-        #expect(result.succeeded)
-        #expect(result.text.contains("changed"))
     }
 }

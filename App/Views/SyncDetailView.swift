@@ -15,6 +15,7 @@ struct SyncDetailView: View {
     @State private var isFixingGit = false
     @State private var showManualFix = false
     @State private var showGuidance = false
+    @State private var isBulkResolving = false
     @State private var showDangerZone = false
     @State private var sourceRemoteURL: String?
     @State private var sourceBranch: String?
@@ -31,6 +32,7 @@ struct SyncDetailView: View {
                 configurationSection
                 if let conflicts = session.conflicts, !conflicts.isEmpty {
                     conflictsSection(conflicts)
+                        .transition(.opacity)
                 }
                 dangerZone
             }
@@ -88,7 +90,7 @@ struct SyncDetailView: View {
             HStack {
                 StatusBadge(status: session.status, paused: session.paused)
                 Text(StatusBadge(status: session.status, paused: session.paused).label)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
@@ -99,14 +101,14 @@ struct SyncDetailView: View {
                 }
                 Label(session.creationTime.prefix(10).description, systemImage: "calendar")
             }
-            .font(.caption)
+            .font(.callout)
             .foregroundStyle(.secondary)
 
             if let labels = session.labels, !labels.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(labels.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                         Text("\(key): \(value)")
-                            .font(.caption2)
+                            .font(.caption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(.blue.opacity(0.1))
@@ -118,7 +120,7 @@ struct SyncDetailView: View {
 
             if let error = store.lastError {
                 Text(error)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.red)
                     .padding(.top, 2)
             }
@@ -175,9 +177,9 @@ struct SyncDetailView: View {
 
                 VStack(spacing: 4) {
                     Image(systemName: isOneWay ? "arrow.right" : "arrow.left.arrow.right")
-                        .font(.caption)
+                        .font(.callout)
                     Text(syncModeLabel)
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                 }
                 .foregroundStyle(.secondary)
                 .frame(width: 56)
@@ -223,7 +225,7 @@ struct SyncDetailView: View {
                 Spacer()
                 Button("Dismiss") { dismissGitMismatch() }
                     .buttonStyle(.borderless)
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
@@ -231,7 +233,7 @@ struct SyncDetailView: View {
              + Text(" has a .git directory, but ")
              + Text(missingGitLabel).foregroundStyle(missingGitColor).fontWeight(.semibold)
              + Text(" does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo."))
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
 
             Button {
@@ -266,7 +268,7 @@ struct SyncDetailView: View {
                 } icon: {
                     Image(systemName: "info.circle.fill")
                 }
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.orange)
             }
 
@@ -275,7 +277,7 @@ struct SyncDetailView: View {
                     (Text("Run these commands on the ")
                      + Text(missingGitLabel).foregroundStyle(missingGitColor).fontWeight(.semibold)
                      + Text(" endpoint:"))
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
 
                     let commands = """
@@ -287,7 +289,7 @@ struct SyncDetailView: View {
                     """
 
                     Text(commands)
-                        .font(.caption2)
+                        .font(.caption)
                         .monospaced()
                         .textSelection(.enabled)
                         .padding(8)
@@ -298,7 +300,7 @@ struct SyncDetailView: View {
                 .padding(.top, 4)
             } label: {
                 Label("How to fix manually", systemImage: "wrench")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .contentShape(Rectangle())
                     .onTapGesture { showManualFix.toggle() }
@@ -348,14 +350,14 @@ struct SyncDetailView: View {
             if let paths = session.ignore.paths, !paths.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Ignore Rules")
-                        .font(.caption)
+                        .font(.callout)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
 
                     FlowLayout(spacing: 6) {
                         ForEach(paths, id: \.self) { path in
                             Text(path)
-                                .font(.caption2)
+                                .font(.caption)
                                 .monospaced()
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -372,11 +374,11 @@ struct SyncDetailView: View {
     private func configRow(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(width: 100, alignment: .leading)
             Text(value)
-                .font(.caption)
+                .font(.callout)
                 .monospaced()
             Spacer()
         }
@@ -388,7 +390,9 @@ struct SyncDetailView: View {
     // MARK: - Conflicts
 
     private func conflictsSection(_ conflicts: [Conflict]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let grouped = conflictGroups(conflicts)
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
@@ -403,17 +407,105 @@ struct SyncDetailView: View {
 
             resolutionGuidance
 
-            ForEach(Array(conflicts.enumerated()), id: \.offset) { _, conflict in
-                ConflictCard(
-                    conflict: conflict,
-                    session: session,
-                    store: store
-                )
+            if isBulkResolving {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Resolving conflicts...")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+
+            ForEach(grouped, id: \.folder) { group in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Text(group.folder)
+                            .font(.callout)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                        Text("(\(group.conflicts.count))")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Spacer()
+                        bulkResolveButtons(conflicts: group.conflicts)
+                    }
+
+                    ForEach(group.conflicts) { conflict in
+                        ConflictCard(
+                            conflict: conflict,
+                            session: session,
+                            store: store
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    }
+                }
             }
         }
         .padding()
         .background(.orange.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func bulkResolveButtons(conflicts: [Conflict]) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                bulkResolve(conflicts: conflicts, winner: .alpha)
+            } label: {
+                HStack(spacing: 2) {
+                    if session.alpha.protocol_ == "local" {
+                        Image(systemName: "laptopcomputer")
+                    }
+                    Text("Keep All Alpha")
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(.blue)
+            .controlSize(.mini)
+            .disabled(isBulkResolving)
+
+            Button {
+                bulkResolve(conflicts: conflicts, winner: .beta)
+            } label: {
+                HStack(spacing: 2) {
+                    if session.beta.protocol_ == "local" {
+                        Image(systemName: "laptopcomputer")
+                    }
+                    Text("Keep All Beta")
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(.purple)
+            .controlSize(.mini)
+            .disabled(isBulkResolving)
+        }
+    }
+
+    private func bulkResolve(conflicts: [Conflict], winner: ConflictWinner) {
+        isBulkResolving = true
+        Task {
+            await store.resolveConflicts(session: session, conflicts: conflicts, winner: winner)
+            isBulkResolving = false
+        }
+    }
+
+    private struct ConflictGroup {
+        let folder: String
+        let conflicts: [Conflict]
+    }
+
+    private func conflictGroups(_ conflicts: [Conflict]) -> [ConflictGroup] {
+        var groups: [String: [Conflict]] = [:]
+        for conflict in conflicts {
+            let folder = conflict.root.split(separator: "/").first.map(String.init) ?? "(root)"
+            groups[folder, default: []].append(conflict)
+        }
+        return groups.keys.sorted().map { ConflictGroup(folder: $0, conflicts: groups[$0]!) }
     }
 
     private var resolutionGuidance: some View {
@@ -438,7 +530,7 @@ struct SyncDetailView: View {
             .padding(.top, 4)
         } label: {
             Label("How to resolve conflicts", systemImage: "questionmark.circle")
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .contentShape(Rectangle())
                 .onTapGesture { showGuidance.toggle() }
@@ -455,7 +547,7 @@ struct SyncDetailView: View {
                 Text(body).foregroundStyle(.secondary)
             }
         }
-        .font(.caption)
+        .font(.callout)
     }
 
     // MARK: - Danger Zone
@@ -465,10 +557,10 @@ struct SyncDetailView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Terminate Session")
-                        .font(.caption)
+                        .font(.callout)
                         .fontWeight(.semibold)
                     Text("Permanently remove this session. This cannot be undone.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -500,7 +592,7 @@ private struct EndpointCard: View {
                 HStack(spacing: 4) {
                     Circle().fill(color).frame(width: 6, height: 6)
                     Text(label)
-                        .font(.caption)
+                        .font(.callout)
                         .fontWeight(.semibold)
                         .foregroundStyle(color)
                 }
@@ -511,15 +603,15 @@ private struct EndpointCard: View {
                     .accessibilityLabel(endpoint.connected == true ? "Connected" : "Disconnected")
             }
 
-            LabeledContent("Protocol", value: endpoint.protocol_)
+            endpointRow("Protocol", endpoint.protocol_)
             if let user = endpoint.user {
-                LabeledContent("User", value: user)
+                endpointRow("User", user)
             }
-            if let host = endpoint.host {
-                LabeledContent("Host", value: host)
-            }
+            endpointRow("Host", displayHost)
             if let path = endpoint.path {
-                LabeledContent("Path") {
+                HStack {
+                    Text("Path")
+                        .fontWeight(.semibold)
                     Text(path)
                         .monospaced()
                         .lineLimit(1)
@@ -535,14 +627,26 @@ private struct EndpointCard: View {
                     Text("\(files) files")
                     Text(formatBytes(size))
                 }
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.tertiary)
             }
         }
-        .font(.caption)
+        .font(.callout)
         .padding(10)
         .background(.background.secondary)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var displayHost: String {
+        endpoint.host ?? ProcessInfo.processInfo.hostName
+    }
+
+    private func endpointRow(_ label: String, _ value: String) -> some View {
+        LabeledContent {
+            Text(value)
+        } label: {
+            Text(label).fontWeight(.semibold)
+        }
     }
 
     private func formatBytes(_ bytes: Int) -> String {
@@ -558,16 +662,16 @@ private struct ConflictCard: View {
     let conflict: Conflict
     let session: SyncSession
     let store: SessionStore
+    @Environment(\.openWindow) private var openWindow
     @State private var isResolving = false
     @State private var alphaInfo: FileInfo?
     @State private var betaInfo: FileInfo?
     @State private var pendingWinner: ConflictWinner?
     @State private var pendingIgnore = false
-    @State private var showDiff = false
 
-    private var isResolvable: Bool {
+    private var hasUntrackedEntries: Bool {
         let allChanges = conflict.alphaChanges + conflict.betaChanges
-        return !allChanges.contains { $0.new?.kind == "untracked" || $0.old?.kind == "untracked" }
+        return allChanges.contains { $0.new?.kind == "untracked" || $0.old?.kind == "untracked" }
     }
 
     private var isFileDiff: Bool {
@@ -583,41 +687,65 @@ private struct ConflictCard: View {
                 conflictPane(
                     label: "Alpha (\(session.alpha.shortLabel))",
                     color: .blue,
+                    isLocal: session.alpha.protocol_ == "local",
                     changes: conflict.alphaChanges,
                     info: alphaInfo,
                     winner: .alpha,
-                    showAction: isResolvable
+                    showAction: true
                 )
+
+                if isFileDiff {
+                    Button {
+                        openWindow(value: DiffRequest(
+                            sessionIdentifier: session.identifier,
+                            conflictRoot: conflict.root
+                        ))
+                    } label: {
+                        VStack(spacing: 2) {
+                            Image(systemName: "rectangle.split.2x1")
+                            Text("Diff")
+                        }
+                        .font(.caption)
+                        .frame(maxHeight: .infinity)
+                        .padding(.horizontal, 4)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("View Diff")
+                    .accessibilityLabel("View Diff")
+                }
+
                 conflictPane(
                     label: "Beta (\(session.beta.shortLabel))",
                     color: .purple,
+                    isLocal: session.beta.protocol_ == "local",
                     changes: conflict.betaChanges,
                     info: betaInfo,
                     winner: .beta,
-                    showAction: isResolvable
+                    showAction: true
                 )
             }
 
-            if !isResolvable {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("This conflict involves a symlink that cannot be synced between endpoints.",
-                          systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
+            if hasUntrackedEntries {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
                         .foregroundStyle(.orange)
-
+                    Text("Contains entries mutagen cannot track. If resolution fails, try adding to ignore list.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
                     Button {
                         pendingIgnore = true
                     } label: {
-                        Label("Add to Ignore List", systemImage: "eye.slash")
-                            .frame(maxWidth: .infinity)
+                        Label("Ignore", systemImage: "eye.slash")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .tint(.orange)
-                    .controlSize(.small)
+                    .controlSize(.mini)
                     .disabled(isResolving)
                 }
                 .padding(8)
-                .background(.orange.opacity(0.1))
+                .background(.orange.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
@@ -627,22 +755,15 @@ private struct ConflictCard: View {
                     ProgressView()
                         .controlSize(.small)
                     Text("Resolving...")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
             }
         }
         .padding(8)
-        .background(isResolvable ? AnyShapeStyle(.background) : AnyShapeStyle(.orange.opacity(0.03)))
+        .background(.background)
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(.orange.opacity(isResolvable ? 0 : 0.3), lineWidth: 1)
-        )
-        .sheet(isPresented: $showDiff) {
-            DiffSheet(session: session, conflict: conflict, store: store)
-        }
         .task { await loadFileInfo() }
         .alert(
             "Resolve Conflict",
@@ -690,36 +811,26 @@ private struct ConflictCard: View {
         HStack(spacing: 6) {
             Image(systemName: "doc.text")
                 .foregroundStyle(.orange)
-                .font(.caption)
+                .font(.callout)
             Text(conflict.root)
-                .font(.caption)
+                .font(.callout)
                 .monospaced()
                 .fontWeight(.semibold)
             Spacer()
-            if isFileDiff {
-                Button { showDiff = true } label: {
-                    Label("Diff", systemImage: "chevron.left.forwardslash.chevron.right")
-                        .font(.caption2)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .help("View Diff")
-                .accessibilityLabel("View Diff")
-            }
             if session.alpha.protocol_ == "local", let base = session.alpha.path {
                 Button {
                     let fullPath = (base as NSString).appendingPathComponent(conflict.root)
                     NSWorkspace.shared.selectFile(fullPath, inFileViewerRootedAtPath: "")
                 } label: {
                     Image(systemName: "folder")
-                        .font(.caption2)
+                        .font(.caption)
                 }
                 .buttonStyle(.borderless)
                 .help("Reveal in Finder")
                 .accessibilityLabel("Reveal in Finder")
             }
             Text("\(conflict.alphaChanges.count + conflict.betaChanges.count) changes")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -729,6 +840,7 @@ private struct ConflictCard: View {
     private func conflictPane(
         label: String,
         color: Color,
+        isLocal: Bool = false,
         changes: [Change],
         info: FileInfo?,
         winner: ConflictWinner,
@@ -738,26 +850,32 @@ private struct ConflictCard: View {
             HStack(spacing: 4) {
                 Circle().fill(color).frame(width: 6, height: 6)
                 Text(label)
-                    .font(.caption2)
+                    .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(color)
+                if isLocal {
+                    Image(systemName: "laptopcomputer")
+                        .font(.caption)
+                        .foregroundStyle(color)
+                        .help("This computer")
+                }
                 Spacer()
                 if let info {
                     Text(formatBytes(info.size))
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
             if let info {
                 Text(info.modifiedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
 
             if changes.isEmpty {
                 Text("No changes")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 2)
             } else {
@@ -807,12 +925,12 @@ private struct ChangeLabel: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: changeIcon)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(changeColor)
-                .frame(width: 12)
+                .frame(width: 14)
 
             Text(change.path)
-                .font(.caption2)
+                .font(.caption)
                 .monospaced()
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -820,7 +938,7 @@ private struct ChangeLabel: View {
             Spacer()
 
             Text(changeVerb)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(changeColor)
         }
         .padding(.leading, 12)

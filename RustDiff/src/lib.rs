@@ -1,5 +1,5 @@
-// ABOUTME: C-ABI wrapper over imara-diff, dissimilar, and diffy-imara.
-// ABOUTME: Exposes line-level diff, character-level diff, and 3-way merge to Swift via FFI.
+// ABOUTME: C-ABI wrapper over imara-diff and dissimilar.
+// ABOUTME: Exposes line-level diff and character-level diff to Swift via FFI.
 
 use std::os::raw::c_char;
 use std::ptr;
@@ -43,14 +43,6 @@ pub struct InlineChunk {
     pub tag: u8,
     pub text: *mut c_char,
     pub text_len: u32,
-}
-
-#[repr(C)]
-pub struct MergeResult {
-    /// 0 = success (merged contains result), 1 = conflict (merged contains conflict markers)
-    pub status: u8,
-    pub merged: *mut c_char,
-    pub merged_len: u32,
 }
 
 // -- Helpers --
@@ -209,36 +201,6 @@ pub unsafe extern "C" fn helix_diff_chars(
     Box::into_raw(result)
 }
 
-// -- 3-way merge --
-
-#[no_mangle]
-pub unsafe extern "C" fn helix_merge3(
-    base_ptr: *const c_char,
-    base_len: u32,
-    a_ptr: *const c_char,
-    a_len: u32,
-    b_ptr: *const c_char,
-    b_len: u32,
-) -> *mut MergeResult {
-    let base = ptr_to_str(base_ptr, base_len);
-    let a = ptr_to_str(a_ptr, a_len);
-    let b = ptr_to_str(b_ptr, b_len);
-
-    let (status, merged_text) = match diffy_imara::merge(base, a, b) {
-        Ok(merged) => (0u8, merged),
-        Err(conflict) => (1u8, conflict),
-    };
-
-    let (ptr, len) = str_to_c_heap(&merged_text);
-
-    let result = Box::new(MergeResult {
-        status,
-        merged: ptr,
-        merged_len: len,
-    });
-    Box::into_raw(result)
-}
-
 // -- Memory deallocation --
 
 #[no_mangle]
@@ -274,15 +236,6 @@ pub unsafe extern "C" fn helix_inline_free(ptr: *mut InlineResult) {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn helix_merge_free(ptr: *mut MergeResult) {
-    if ptr.is_null() { return; }
-    let result = Box::from_raw(ptr);
-    if !result.merged.is_null() {
-        libc_free(result.merged as *mut u8);
-    }
-}
-
 // -- Utility --
 
 /// Moves a Vec's contents to a heap allocation and returns a raw pointer.
@@ -301,7 +254,6 @@ fn vec_to_heap<T>(mut v: Vec<T>) -> *mut T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn line_diff_basic() {
@@ -351,55 +303,6 @@ mod tests {
     }
 
     #[test]
-    fn merge3_no_conflict() {
-        let base = "line1\nline2\nline3\n";
-        let a = "line1\nmodified\nline3\n";
-        let b = "line1\nline2\nline3\nnew line\n";
-
-        unsafe {
-            let result = helix_merge3(
-                base.as_ptr() as *const c_char, base.len() as u32,
-                a.as_ptr() as *const c_char, a.len() as u32,
-                b.as_ptr() as *const c_char, b.len() as u32,
-            );
-            assert!(!result.is_null());
-
-            let r = &*result;
-            assert_eq!(r.status, 0); // success
-
-            let merged = CStr::from_ptr(r.merged).to_str().unwrap();
-            assert!(merged.contains("modified"));
-            assert!(merged.contains("new line"));
-
-            helix_merge_free(result);
-        }
-    }
-
-    #[test]
-    fn merge3_with_conflict() {
-        let base = "line1\nline2\nline3\n";
-        let a = "line1\nalpha\nline3\n";
-        let b = "line1\nbeta\nline3\n";
-
-        unsafe {
-            let result = helix_merge3(
-                base.as_ptr() as *const c_char, base.len() as u32,
-                a.as_ptr() as *const c_char, a.len() as u32,
-                b.as_ptr() as *const c_char, b.len() as u32,
-            );
-            assert!(!result.is_null());
-
-            let r = &*result;
-            assert_eq!(r.status, 1); // conflict
-
-            let merged = CStr::from_ptr(r.merged).to_str().unwrap();
-            assert!(merged.contains("<<<<<<<"));
-
-            helix_merge_free(result);
-        }
-    }
-
-    #[test]
     fn line_diff_identical() {
         let text = "same\ncontent\n";
 
@@ -444,7 +347,6 @@ mod tests {
         unsafe {
             helix_diff_free(ptr::null_mut());
             helix_inline_free(ptr::null_mut());
-            helix_merge_free(ptr::null_mut());
         }
     }
 }

@@ -12,7 +12,6 @@ struct SettingsView: View {
     @State private var pollingInterval: Double = 5.0
     @State private var launchAtLogin = false
     @AppStorage("cliPath") private var cliPath = HelixApp.defaultCLIPath
-    @AppStorage("textSize") private var textSize = "system"
 
     var body: some View {
         TabView {
@@ -39,14 +38,6 @@ struct SettingsView: View {
     private var generalTab: some View {
         Form {
             Section("Helix") {
-                Picker("Text Size", selection: $textSize) {
-                    Text("System Default").tag("system")
-                    Text("Small").tag("small")
-                    Text("Medium").tag("medium")
-                    Text("Large").tag("large")
-                    Text("Extra Large").tag("xLarge")
-                }
-
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
                         do {
