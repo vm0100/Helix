@@ -16,6 +16,7 @@ struct SyncDetailView: View {
     @State private var showManualFix = false
     @State private var showGuidance = false
     @State private var isBulkResolving = false
+    @State private var resolvingRoots: Set<String> = []
     @State private var showDangerZone = false
     @State private var sourceRemoteURL: String?
     @State private var sourceBranch: String?
@@ -30,8 +31,8 @@ struct SyncDetailView: View {
                     gitMismatchBanner
                 }
                 configurationSection
-                if let conflicts = session.conflicts, !conflicts.isEmpty {
-                    conflictsSection(conflicts)
+                if !visibleConflicts.isEmpty {
+                    conflictsSection(visibleConflicts)
                         .transition(.opacity)
                 }
                 dangerZone
@@ -71,6 +72,12 @@ struct SyncDetailView: View {
                 sourceRemoteURL = info.remoteURL
                 sourceBranch = info.branch
             }
+        }
+        .onChange(of: session.conflicts) {
+            // Clear roots that are no longer in the conflict list (confirmed resolved).
+            // Store-level preserveConflicts ensures mid-scan nil data doesn't reach here.
+            let currentRoots = Set((session.conflicts ?? []).map(\.root))
+            resolvingRoots = resolvingRoots.intersection(currentRoots)
         }
     }
 
@@ -188,6 +195,10 @@ struct SyncDetailView: View {
                 EndpointCard(label: "Beta", color: .purple, endpoint: session.beta)
             }
         }
+    }
+
+    private var visibleConflicts: [Conflict] {
+        (session.conflicts ?? []).filter { !resolvingRoots.contains($0.root) }
     }
 
     private var isOneWay: Bool {
@@ -440,7 +451,8 @@ struct SyncDetailView: View {
                         ConflictCard(
                             conflict: conflict,
                             session: session,
-                            store: store
+                            store: store,
+                            onResolveStarted: { markResolving(conflict.root) }
                         )
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     }
@@ -448,7 +460,7 @@ struct SyncDetailView: View {
             }
         }
         .padding()
-        .background(.orange.opacity(0.05))
+        .background(Color.orange.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
@@ -487,10 +499,19 @@ struct SyncDetailView: View {
     }
 
     private func bulkResolve(conflicts: [Conflict], winner: ConflictWinner) {
+        withAnimation {
+            resolvingRoots.formUnion(conflicts.map(\.root))
+        }
         isBulkResolving = true
         Task {
             await store.resolveConflicts(session: session, conflicts: conflicts, winner: winner)
             isBulkResolving = false
+        }
+    }
+
+    private func markResolving(_ root: String) {
+        withAnimation {
+            resolvingRoots.insert(root)
         }
     }
 
@@ -662,6 +683,7 @@ private struct ConflictCard: View {
     let conflict: Conflict
     let session: SyncSession
     let store: SessionStore
+    var onResolveStarted: (() -> Void)?
     @Environment(\.openWindow) private var openWindow
     @State private var isResolving = false
     @State private var alphaInfo: FileInfo?
@@ -679,6 +701,15 @@ private struct ConflictCard: View {
         return allChanges.contains { ($0.new?.kind ?? $0.old?.kind) == "file" }
     }
 
+    /// Non-nil when one side is a symlink and the other is not.
+    private var symlinkResolution: (symlinkSide: ConflictWinner, directorySide: ConflictWinner)? {
+        let aLink = alphaInfo?.isSymlink ?? false
+        let bLink = betaInfo?.isSymlink ?? false
+        if aLink && !bLink { return (symlinkSide: .alpha, directorySide: .beta) }
+        if bLink && !aLink { return (symlinkSide: .beta, directorySide: .alpha) }
+        return nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
@@ -691,7 +722,7 @@ private struct ConflictCard: View {
                     changes: conflict.alphaChanges,
                     info: alphaInfo,
                     winner: .alpha,
-                    showAction: true
+                    showAction: symlinkResolution?.symlinkSide != .alpha
                 )
 
                 if isFileDiff {
@@ -722,8 +753,21 @@ private struct ConflictCard: View {
                     changes: conflict.betaChanges,
                     info: betaInfo,
                     winner: .beta,
-                    showAction: true
+                    showAction: symlinkResolution?.symlinkSide != .beta
                 )
+            }
+
+            if let resolution = symlinkResolution {
+                Button {
+                    pendingWinner = resolution.directorySide
+                } label: {
+                    Label("Replace symlink with directory", systemImage: "arrow.triangle.swap")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .controlSize(.small)
+                .disabled(isResolving)
             }
 
             if hasUntrackedEntries {
@@ -775,6 +819,7 @@ private struct ConflictCard: View {
             Button("Replace", role: .destructive) {
                 guard let winner = pendingWinner else { return }
                 pendingWinner = nil
+                onResolveStarted?()
                 Task {
                     isResolving = true
                     await store.resolveConflict(session: session, conflict: conflict, winner: winner)
@@ -861,13 +906,31 @@ private struct ConflictCard: View {
                 }
                 Spacer()
                 if let info {
-                    Text(formatBytes(info.size))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if info.isSymlink {
+                        Label("Symlink", systemImage: "arrow.triangle.turn.up.right.diamond")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text(formatBytes(info.size))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
             if let info {
+                if info.isSymlink, let target = info.symlinkTarget {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                        Text(target)
+                            .font(.caption)
+                            .monospaced()
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .foregroundStyle(.orange)
+                }
                 Text(info.modifiedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
                     .font(.caption)
                     .foregroundStyle(.tertiary)

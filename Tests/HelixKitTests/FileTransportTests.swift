@@ -198,6 +198,8 @@ struct FileTransportStatTests {
 
         #expect(info.size == 1024)
         #expect(info.modifiedAt == Date(timeIntervalSince1970: 1700000000))
+        #expect(info.isSymlink == false)
+        #expect(info.symlinkTarget == nil)
         let cmd = recorder.commands[0]
         #expect(cmd.executable == "/usr/bin/stat")
         #expect(cmd.arguments == ["-f", "%z %m", "/tmp/file.txt"])
@@ -487,6 +489,163 @@ struct FileTransportDirectoryExistsTests {
         await #expect(throws: CLIError.self) {
             try await transport.directoryExists(endpoint: .local(path: "/tmp/.git"))
         }
+    }
+}
+
+@Suite("FileTransport isSymlink commands")
+struct FileTransportIsSymlinkTests {
+
+    @Test("local symlink runs test -L and returns true")
+    func localSymlink() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.isSymlink(endpoint: .local(path: "/tmp/link"))
+
+        #expect(result == true)
+        #expect(recorder.commands.count == 1)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/bin/test")
+        #expect(cmd.arguments == ["-L", "/tmp/link"])
+    }
+
+    @Test("local non-symlink (exit 1) returns false")
+    func localNotSymlink() async throws {
+        let recorder = CommandRecorder(error: CLIError(exitCode: 1, stderr: ""))
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.isSymlink(endpoint: .local(path: "/tmp/regular"))
+
+        #expect(result == false)
+    }
+
+    @Test("ssh symlink runs ssh test -L")
+    func sshSymlink() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.isSymlink(
+            endpoint: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/link")
+        )
+
+        #expect(result == true)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["deploy@server.com", "test -L '/opt/link'"])
+    }
+
+    @Test("ssh with port includes -p flag")
+    func sshWithPort() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.isSymlink(
+            endpoint: .ssh(user: "root", host: "box", port: 2222, path: "/data/link")
+        )
+
+        #expect(result == true)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["-p", "2222", "root@box", "test -L '/data/link'"])
+    }
+
+    @Test("docker symlink runs docker exec test -L")
+    func dockerSymlink() async throws {
+        let recorder = CommandRecorder()
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.isSymlink(
+            endpoint: .docker(container: "myapp", path: "/app/link")
+        )
+
+        #expect(result == true)
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "test", "-L", "/app/link"])
+    }
+
+    @Test("transport error (exit 255) rethrows")
+    func transportError() async throws {
+        let recorder = CommandRecorder(error: CLIError(exitCode: 255, stderr: "connection refused"))
+        let transport = FileTransport(execute: recorder.execute)
+
+        await #expect(throws: CLIError.self) {
+            try await transport.isSymlink(endpoint: .local(path: "/tmp/link"))
+        }
+    }
+}
+
+@Suite("FileTransport readLink commands")
+struct FileTransportReadLinkTests {
+
+    @Test("local readLink uses readlink")
+    func readLinkLocal() async throws {
+        let recorder = CommandRecorder(output: "/actual/target/path")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.readLink(endpoint: .local(path: "/tmp/link"))
+
+        #expect(result == "/actual/target/path")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/readlink")
+        #expect(cmd.arguments == ["/tmp/link"])
+    }
+
+    @Test("ssh readLink uses ssh readlink")
+    func readLinkSSH() async throws {
+        let recorder = CommandRecorder(output: "/remote/target\n")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.readLink(
+            endpoint: .ssh(user: "deploy", host: "server.com", port: nil, path: "/opt/link")
+        )
+
+        #expect(result == "/remote/target")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["deploy@server.com", "readlink '/opt/link'"])
+    }
+
+    @Test("ssh readLink with port includes -p flag")
+    func readLinkSSHWithPort() async throws {
+        let recorder = CommandRecorder(output: "/target\n")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.readLink(
+            endpoint: .ssh(user: nil, host: "box", port: 2222, path: "/data/link")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/ssh")
+        #expect(cmd.arguments == ["-p", "2222", "box", "readlink '/data/link'"])
+    }
+
+    @Test("docker readLink uses docker exec readlink")
+    func readLinkDocker() async throws {
+        let recorder = CommandRecorder(output: "/container/target\n")
+        let transport = FileTransport(execute: recorder.execute)
+
+        let result = try await transport.readLink(
+            endpoint: .docker(container: "myapp", path: "/app/link")
+        )
+
+        #expect(result == "/container/target")
+        let cmd = recorder.commands[0]
+        #expect(cmd.executable == "/usr/bin/docker")
+        #expect(cmd.arguments == ["exec", "myapp", "readlink", "/app/link"])
+    }
+
+    @Test("ssh readLink with tilde uses $HOME")
+    func readLinkSSHTilde() async throws {
+        let recorder = CommandRecorder(output: "/target\n")
+        let transport = FileTransport(execute: recorder.execute)
+
+        _ = try await transport.readLink(
+            endpoint: .ssh(user: "hex", host: "server", port: nil, path: "~/project/link")
+        )
+
+        let cmd = recorder.commands[0]
+        #expect(cmd.arguments == ["hex@server", "readlink \"$HOME/project/link\""])
     }
 }
 

@@ -10,6 +10,8 @@ public enum FileTransportError: Error {
 public struct FileInfo: Sendable {
     public let size: Int64
     public let modifiedAt: Date
+    public let isSymlink: Bool
+    public let symlinkTarget: String?
 }
 
 public enum ConflictWinner: Sendable {
@@ -153,6 +155,43 @@ public struct FileTransport: Sendable {
         }
     }
 
+    // MARK: - Symlink Detection
+
+    public func isSymlink(endpoint: EndpointURL) async throws -> Bool {
+        do {
+            switch endpoint {
+            case .local(let path):
+                _ = try await execute("/bin/test", ["-L", path])
+            case .ssh(let user, let host, let port, let path):
+                var args: [String] = []
+                if let port { args += ["-p", "\(port)"] }
+                args += [sshTarget(user: user, host: host), "test -L \(shellQuoted(path))"]
+                _ = try await execute("/usr/bin/ssh", args)
+            case .docker(let container, let path):
+                _ = try await execute("/usr/bin/docker", ["exec", container, "test", "-L", path])
+            }
+            return true
+        } catch let error as CLIError where error.exitCode == 1 {
+            return false
+        }
+    }
+
+    public func readLink(endpoint: EndpointURL) async throws -> String {
+        let output: String
+        switch endpoint {
+        case .local(let path):
+            output = try await execute("/usr/bin/readlink", [path])
+        case .ssh(let user, let host, let port, let path):
+            var args: [String] = []
+            if let port { args += ["-p", "\(port)"] }
+            args += [sshTarget(user: user, host: host), "readlink \(shellQuoted(path))"]
+            output = try await execute("/usr/bin/ssh", args)
+        case .docker(let container, let path):
+            output = try await execute("/usr/bin/docker", ["exec", container, "readlink", path])
+        }
+        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: - Path Exists
 
     public func pathExists(endpoint: EndpointURL) async throws -> Bool {
@@ -247,6 +286,6 @@ public struct FileTransport: Sendable {
               let mtime = TimeInterval(parts[1]) else {
             throw FileTransportError.malformedStatOutput(trimmed)
         }
-        return FileInfo(size: size, modifiedAt: Date(timeIntervalSince1970: mtime))
+        return FileInfo(size: size, modifiedAt: Date(timeIntervalSince1970: mtime), isSymlink: false, symlinkTarget: nil)
     }
 }

@@ -93,7 +93,7 @@ public final class SessionStore {
         do {
             async let syncs = provider.syncList()
             async let forwards = provider.forwardList()
-            let newSyncs = try await syncs
+            let newSyncs = preserveConflicts(old: syncSessions, new: try await syncs)
             let newForwards = try await forwards
             if syncDigest(newSyncs) != syncDigest(syncSessions) { syncSessions = newSyncs }
             if forwardDigest(newForwards) != forwardDigest(forwardSessions) { forwardSessions = newForwards }
@@ -291,8 +291,24 @@ public final class SessionStore {
 
         async let alphaStat = try? fileTransport.stat(endpoint: alphaURL)
         async let betaStat = try? fileTransport.stat(endpoint: betaURL)
+        async let alphaIsLink = try? fileTransport.isSymlink(endpoint: alphaURL)
+        async let betaIsLink = try? fileTransport.isSymlink(endpoint: betaURL)
 
-        return (alpha: await alphaStat, beta: await betaStat)
+        let (aStat, bStat, aIsLink, bIsLink) = await (alphaStat, betaStat, alphaIsLink, betaIsLink)
+
+        let alphaTarget: String? = (aIsLink == true)
+            ? (try? await fileTransport.readLink(endpoint: alphaURL)) : nil
+        let betaTarget: String? = (bIsLink == true)
+            ? (try? await fileTransport.readLink(endpoint: betaURL)) : nil
+
+        let alphaInfo = aStat.map {
+            FileInfo(size: $0.size, modifiedAt: $0.modifiedAt, isSymlink: aIsLink ?? false, symlinkTarget: alphaTarget)
+        }
+        let betaInfo = bStat.map {
+            FileInfo(size: $0.size, modifiedAt: $0.modifiedAt, isSymlink: bIsLink ?? false, symlinkTarget: betaTarget)
+        }
+
+        return (alpha: alphaInfo, beta: betaInfo)
     }
 
     public func resolveConflict(
@@ -351,22 +367,15 @@ public final class SessionStore {
             return
         }
 
-        // Resume and flush to let mutagen re-scan with the resolved state
+        // Resume and flush to let mutagen re-scan with the resolved state.
+        // Don't call refresh() here — syncList() right after flush catches mutagen mid-scan
+        // with empty conflicts, causing UI flicker. The polling cycle brings authoritative data.
         do {
             try await provider.syncResume(session.identifier)
             ConsoleLog.shared.log("  resumed session")
             try await provider.syncFlush(session.identifier)
             ConsoleLog.shared.log("  flush succeeded")
             lastError = nil
-            await refresh()
-
-            // Verify the conflict actually cleared
-            if let updated = syncSessions.first(where: { $0.identifier == session.identifier }),
-               let conflicts = updated.conflicts,
-               conflicts.contains(where: { $0.root == conflict.root }) {
-                ConsoleLog.shared.log("  conflict persisted after flush for '\(conflict.root)'", level: .error)
-                lastError = "Conflict \"\(conflict.root)\" could not be resolved. The file may be a symlink or have special attributes that prevent copying."
-            }
         } catch {
             ConsoleLog.shared.log("  flush FAILED: \(error.localizedDescription)", level: .error)
             lastError = error.localizedDescription
@@ -428,11 +437,10 @@ public final class SessionStore {
         do {
             try await provider.syncResume(session.identifier)
             try await provider.syncFlush(session.identifier)
-            lastError = nil
-            await refresh()
-
             if failed > 0 {
                 lastError = "\(failed) of \(conflicts.count) conflicts could not be resolved."
+            } else {
+                lastError = nil
             }
         } catch {
             ConsoleLog.shared.log("  flush FAILED: \(error.localizedDescription)", level: .error)
@@ -616,6 +624,22 @@ public final class SessionStore {
     }
 
     // MARK: - Private
+
+    /// Carries forward known conflicts when new poll data has nil conflicts (mid-scan).
+    /// Go protobuf omits empty repeated fields, so mid-scan JSON has `conflicts: null`.
+    private func preserveConflicts(old: [SyncSession], new: [SyncSession]) -> [SyncSession] {
+        let oldByID = Dictionary(uniqueKeysWithValues: old.map { ($0.identifier, $0) })
+        return new.map { session in
+            guard session.conflicts == nil,
+                  let previous = oldByID[session.identifier],
+                  previous.conflicts != nil else {
+                return session
+            }
+            var patched = session
+            patched.conflicts = previous.conflicts
+            return patched
+        }
+    }
 
     /// Hashes fields that affect the UI (identity, status, conflicts, connectivity).
     /// Excludes volatile counters like successfulCycles and endpoint scan statistics

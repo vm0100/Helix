@@ -545,25 +545,30 @@ struct ConflictResolutionTests {
         #expect(cp.arguments == ["-Rp", "/tmp/b/data.json", "/tmp/a/data.json"])
     }
 
-    @Test("Persistent conflict after flush sets error")
+    @Test("Resolve does not call refresh after flush to avoid mid-scan flicker")
     @MainActor
-    func conflictPersists() async {
+    func resolveSkipsRefresh() async {
         let conflict = Conflict(root: "link.txt", alphaChanges: [], betaChanges: [])
         let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
-        // Provider always returns sessions with conflict (simulates unresolvable conflict)
         let recorder = RecordingProvider(syncSessions: [session])
         let copyRecorder = CommandRecorder()
         let transport = FileTransport(execute: copyRecorder.execute)
         let store = SessionStore(provider: recorder, fileTransport: transport)
         await store.refresh()
 
+        let refreshCountBefore = recorder.calls.filter { $0 == "syncList" }.count
         await store.resolveConflict(session: session, conflict: conflict, winner: .alpha)
+        let refreshCountAfter = recorder.calls.filter { $0 == "syncList" }.count
 
-        #expect(store.lastError?.contains("could not be resolved") == true)
-        // Transport and flush should still have been attempted (check + rm + cp)
+        // No additional syncList call — polling handles the refresh
+        #expect(refreshCountAfter == refreshCountBefore)
+        // Transport operations still attempted (check + rm + cp)
         #expect(copyRecorder.commands.count == 3)
+        // Flush still called
         let flushCalls = recorder.calls.filter { $0.hasPrefix("syncFlush") }
         #expect(flushCalls.count == 1)
+        // No error since flush succeeded
+        #expect(store.lastError == nil)
     }
 
     @Test("Copy failure sets lastError and does not flush")
@@ -678,7 +683,11 @@ struct ConflictResolutionTests {
     func fileInfo() async {
         let conflict = Conflict(root: "file.txt", alphaChanges: [], betaChanges: [])
         let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
-        let transport = FileTransport { _, _ in
+        let transport = FileTransport { executable, _ in
+            if executable == "/bin/test" {
+                // isSymlink check: exit 1 = not a symlink
+                throw CLIError(exitCode: 1, stderr: "")
+            }
             return "1024 1700000000"
         }
         let store = SessionStore(provider: FakeProvider(syncSessions: [session]), fileTransport: transport)
@@ -687,8 +696,12 @@ struct ConflictResolutionTests {
 
         #expect(info.alpha != nil)
         #expect(info.alpha?.size == 1024)
+        #expect(info.alpha?.isSymlink == false)
+        #expect(info.alpha?.symlinkTarget == nil)
         #expect(info.beta != nil)
         #expect(info.beta?.size == 1024)
+        #expect(info.beta?.isSymlink == false)
+        #expect(info.beta?.symlinkTarget == nil)
     }
 
     @Test("conflictFileInfo returns nil for failed stat")
@@ -705,6 +718,42 @@ struct ConflictResolutionTests {
 
         #expect(info.alpha == nil)
         #expect(info.beta == nil)
+    }
+
+    @Test("conflictFileInfo populates symlink fields when alpha is a symlink")
+    @MainActor
+    func fileInfoWithSymlink() async {
+        let conflict = Conflict(root: "mylink", alphaChanges: [], betaChanges: [])
+        let session = makeSyncSession(id: "sync_1", name: "s1", conflicts: [conflict])
+        let transport = FileTransport { executable, args in
+            let joined = args.joined(separator: " ")
+            // stat: return valid output for both
+            if executable == "/usr/bin/stat" {
+                return "512 1700000000"
+            }
+            // isSymlink: alpha is a symlink, beta is not
+            if executable == "/bin/test" && args.contains("-L") {
+                if joined.contains("/tmp/a") {
+                    return ""  // exit 0 = is a symlink
+                }
+                throw CLIError(exitCode: 1, stderr: "")  // not a symlink
+            }
+            // readLink: return target for alpha
+            if executable == "/usr/bin/readlink" && joined.contains("/tmp/a") {
+                return "/actual/target/path\n"
+            }
+            return ""
+        }
+        let store = SessionStore(provider: FakeProvider(syncSessions: [session]), fileTransport: transport)
+
+        let info = await store.conflictFileInfo(session: session, conflict: conflict)
+
+        #expect(info.alpha != nil)
+        #expect(info.alpha?.isSymlink == true)
+        #expect(info.alpha?.symlinkTarget == "/actual/target/path")
+        #expect(info.beta != nil)
+        #expect(info.beta?.isSymlink == false)
+        #expect(info.beta?.symlinkTarget == nil)
     }
 }
 

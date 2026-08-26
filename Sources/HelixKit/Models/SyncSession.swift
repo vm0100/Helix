@@ -23,5 +23,5 @@ public struct SyncSession: Codable, Identifiable, Hashable, Sendable {
     public let watch: WatchConfig
     public let permissions: PermissionsConfig
     public let compression: CompressionConfig
-    public let conflicts: [Conflict]?
+    public var conflicts: [Conflict]?
 }
