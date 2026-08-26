@@ -19,7 +19,8 @@
 - **Menu bar status** -- Live icon reflects overall session health at a glance (healthy, syncing, conflicts, errors)
 - **Session dashboard** -- Browse, search, and filter all sync and forward sessions in a three-column window
 - **Create sessions** -- Step-by-step wizard for sync sessions; streamlined form for port forwarding
-- **Edit sessions** -- Change sync mode, ignore rules, symlinks, compression, and watch settings on existing sessions
+- **Edit sessions** -- Rename a session, or change its sync mode, ignore rules, symlinks, compression, and watch settings
+- **Unique names** -- Rejects a name another session already holds, so `mutagen sync pause <name>` always resolves to one session
 - **Conflict resolution** -- Inspect per-file conflicts side by side, keep either side with one click across local, SSH, and Docker endpoints; handles file-vs-directory type mismatches with confirmation before destructive operations
 - **Endpoint support** -- Local paths, SSH remotes, and Docker containers with transport-aware file operations
 - **Git mismatch detection** -- Detects when a git repo exists on one sync endpoint but not the other, with automatic fix to initialize the missing side
