@@ -9,6 +9,7 @@ struct EditSyncConfigView: View {
     let store: SessionStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var sessionName: String
     @State private var labels: [String: String]
     @State private var syncMode: String
     @State private var ignoreInput: String
@@ -23,6 +24,7 @@ struct EditSyncConfigView: View {
     init(session: SyncSession, store: SessionStore) {
         self.session = session
         self.store = store
+        _sessionName = State(initialValue: session.name ?? "")
         _labels = State(initialValue: session.labels ?? [:])
         _syncMode = State(initialValue: session.mode ?? "two-way-safe")
         _ignoreInput = State(initialValue: (session.ignore.paths ?? []).joined(separator: "\n"))
@@ -40,6 +42,7 @@ struct EditSyncConfigView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    nameField
                     endpointSummary
 
                     DisclosureGroup(isExpanded: $labelsExpanded) {
@@ -96,7 +99,7 @@ struct EditSyncConfigView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Edit Configuration")
+            Text("Edit Session")
                 .font(.headline)
             Text(session.name ?? session.identifier)
                 .font(.caption)
@@ -104,6 +107,33 @@ struct EditSyncConfigView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
+    }
+
+    // MARK: - Name
+
+    private var nameField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Name")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+
+            TextField("Session Name (optional)", text: $sessionName)
+                .textFieldStyle(.roundedBorder)
+
+            if let error = nameValidationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var nameValidationError: String? {
+        SessionName.validate(
+            sessionName,
+            existingNames: store.syncSessionNames(excluding: session.identifier)
+        )?.message
     }
 
     // MARK: - Endpoints (read-only)
@@ -184,7 +214,7 @@ struct EditSyncConfigView: View {
                 Task { await applyChanges() }
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(isApplying || !hasChanges)
+            .disabled(isApplying || !hasChanges || nameValidationError != nil)
         }
         .padding()
     }
@@ -199,7 +229,8 @@ struct EditSyncConfigView: View {
         let currentCompression = session.compression.algorithm ?? "none"
         let currentWatch = session.watch.mode ?? "portable"
 
-        return labels != currentLabels
+        return sessionName != (session.name ?? "")
+            || labels != currentLabels
             || syncMode != currentMode
             || ignoreInput != currentIgnore
             || symlinkMode != currentSymlink
@@ -213,6 +244,7 @@ struct EditSyncConfigView: View {
 
     private var options: SyncCreateOptions {
         var opts = SyncCreateOptions(from: session)
+        opts.name = sessionName.isEmpty ? nil : sessionName
         opts.labels = labels
         opts.mode = syncMode
         opts.ignorePaths = ignorePaths

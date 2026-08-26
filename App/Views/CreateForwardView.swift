@@ -37,8 +37,15 @@ struct CreateForwardView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
 
-                    TextField("Session Name (optional)", text: $sessionName)
-                        .textFieldStyle(.roundedBorder)
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Session Name (optional)", text: $sessionName)
+                            .textFieldStyle(.roundedBorder)
+                        if let error = nameValidationError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
 
                     DisclosureGroup(isExpanded: $labelsExpanded) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -238,10 +245,15 @@ struct CreateForwardView: View {
         options.commandPreview(source: sourceFormatted, destination: destFormatted)
     }
 
+    private var nameValidationError: String? {
+        SessionName.validate(sessionName, existingNames: store.forwardSessionNames())?.message
+    }
+
     private var isValid: Bool {
         !sourceAddress.isEmpty && !destAddress.isEmpty
             && (sourceTransport == .local || !sourceHost.isEmpty)
             && (destTransport == .local || !destHost.isEmpty)
+            && nameValidationError == nil
     }
 
     private func createSession() async {

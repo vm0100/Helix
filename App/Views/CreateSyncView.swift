@@ -295,17 +295,7 @@ struct CreateSyncView: View {
     }
 
     private var nameValidationError: String? {
-        guard !sessionName.isEmpty else { return nil }
-        if sessionName.lowercased() == "defaults" {
-            return "\"defaults\" is reserved"
-        }
-        if let first = sessionName.first, !first.isLetter {
-            return "Must start with a letter"
-        }
-        if let bad = sessionName.first(where: { !$0.isLetter && !$0.isNumber && $0 != "-" }) {
-            return "Invalid character: '\(bad)' — only letters, numbers, and dashes allowed"
-        }
-        return nil
+        SessionName.validate(sessionName, existingNames: store.syncSessionNames())?.message
     }
 
     // MARK: - Data Assembly
