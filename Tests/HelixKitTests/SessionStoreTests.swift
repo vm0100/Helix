@@ -1309,3 +1309,60 @@ func makeForwardSession(
         socket: nil
     )
 }
+
+@Suite("SessionStore name collision sources")
+struct SessionNameCollisionTests {
+
+    @Test("Sync names exclude the session being renamed")
+    @MainActor
+    func syncNamesExcludeSelf() async {
+        let provider = FakeProvider(syncSessions: [
+            makeSyncSession(id: "sync_1", name: "web-app"),
+            makeSyncSession(id: "sync_2", name: "api")
+        ])
+        let store = SessionStore(provider: provider)
+        await store.refresh()
+
+        #expect(store.syncSessionNames(excluding: "sync_1") == ["api"])
+    }
+
+    @Test("Sync names include every session when nothing is excluded")
+    @MainActor
+    func syncNamesIncludeAll() async {
+        let provider = FakeProvider(syncSessions: [
+            makeSyncSession(id: "sync_1", name: "web-app"),
+            makeSyncSession(id: "sync_2", name: "api")
+        ])
+        let store = SessionStore(provider: provider)
+        await store.refresh()
+
+        #expect(store.syncSessionNames() == ["web-app", "api"])
+    }
+
+    @Test("Unnamed sessions contribute no name")
+    @MainActor
+    func unnamedSessionsSkipped() async {
+        let provider = FakeProvider(syncSessions: [
+            makeSyncSession(id: "sync_1", name: nil),
+            makeSyncSession(id: "sync_2", name: "api")
+        ])
+        let store = SessionStore(provider: provider)
+        await store.refresh()
+
+        #expect(store.syncSessionNames() == ["api"])
+    }
+
+    @Test("Forward names are tracked separately from sync names")
+    @MainActor
+    func forwardNamesAreSeparate() async {
+        let provider = FakeProvider(
+            syncSessions: [makeSyncSession(id: "sync_1", name: "web-app")],
+            forwardSessions: [makeForwardSession(id: "fwd_1", name: "db-tunnel")]
+        )
+        let store = SessionStore(provider: provider)
+        await store.refresh()
+
+        #expect(store.forwardSessionNames() == ["db-tunnel"])
+        #expect(store.syncSessionNames() == ["web-app"])
+    }
+}

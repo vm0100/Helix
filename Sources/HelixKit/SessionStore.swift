@@ -59,6 +59,22 @@ public final class SessionStore {
         syncSessions.count + forwardSessions.count
     }
 
+    /// Names held by sync sessions, for rejecting a colliding name.
+    /// - Parameter identifier: the session being renamed, whose own name is not a collision.
+    public func syncSessionNames(excluding identifier: String? = nil) -> [String] {
+        syncSessions
+            .filter { $0.identifier != identifier }
+            .compactMap(\.name)
+    }
+
+    /// Names held by forward sessions. Forwards occupy a namespace of their own —
+    /// `mutagen forward pause` never resolves against sync sessions.
+    public func forwardSessionNames(excluding identifier: String? = nil) -> [String] {
+        forwardSessions
+            .filter { $0.identifier != identifier }
+            .compactMap(\.name)
+    }
+
     public var totalConflictCount: Int {
         syncSessions.reduce(0) { $0 + ($1.conflicts?.count ?? 0) }
     }
