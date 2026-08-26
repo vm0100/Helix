@@ -168,10 +168,16 @@ public final class SessionStore {
         }
 
         let args = options.arguments(alpha: alpha, beta: beta)
+        let identifiersBefore = Set(syncSessions.map(\.identifier))
         do {
             try await provider.syncCreate(arguments: args)
             lastError = nil
             await refresh()
+            // Recreation mints a new identifier, so whatever the caller had selected
+            // no longer resolves. Hand the replacement back to the list.
+            if let recreated = syncSessions.first(where: { !identifiersBefore.contains($0.identifier) }) {
+                pendingSessionSelection = recreated.identifier
+            }
         } catch {
             lastError = "Session terminated but recreation failed: \(error.localizedDescription). Use Create Session to recreate manually."
         }

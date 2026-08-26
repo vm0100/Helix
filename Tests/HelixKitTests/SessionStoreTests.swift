@@ -367,12 +367,20 @@ final class RecordingProvider: SessionProvider, @unchecked Sendable {
     private let lock = NSLock()
     private let syncSessions: [SyncSession]
     private let resolvedSyncSessions: [SyncSession]?
+    private let sessionsAfterCreate: [SyncSession]?
     private var _flushed = false
+    private var _created = false
     private let failOn: String?
 
-    init(syncSessions: [SyncSession] = [], resolvedSyncSessions: [SyncSession]? = nil, failOn: String? = nil) {
+    init(
+        syncSessions: [SyncSession] = [],
+        resolvedSyncSessions: [SyncSession]? = nil,
+        sessionsAfterCreate: [SyncSession]? = nil,
+        failOn: String? = nil
+    ) {
         self.syncSessions = syncSessions
         self.resolvedSyncSessions = resolvedSyncSessions
+        self.sessionsAfterCreate = sessionsAfterCreate
         self.failOn = failOn
     }
 
@@ -395,16 +403,25 @@ final class RecordingProvider: SessionProvider, @unchecked Sendable {
     func syncList() async throws -> [SyncSession] {
         lock.lock()
         let flushed = _flushed
+        let created = _created
         lock.unlock()
         if flushed, let resolved = resolvedSyncSessions {
             return resolved
+        }
+        if created, let afterCreate = sessionsAfterCreate {
+            return afterCreate
         }
         return syncSessions
     }
     func forwardList() async throws -> [ForwardSession] { [] }
     func daemonRunning() async throws -> Bool { true }
     func version() async throws -> String { "0.18.1" }
-    func syncCreate(arguments: [String]) async throws { try record("syncCreate:\(arguments.joined(separator: " "))") }
+    func syncCreate(arguments: [String]) async throws {
+        try record("syncCreate:\(arguments.joined(separator: " "))")
+        lock.lock()
+        _created = true
+        lock.unlock()
+    }
     func forwardCreate(arguments: [String]) async throws {}
     func syncPause(_ identifier: String) async throws {}
     func syncResume(_ identifier: String) async throws {}
@@ -1364,5 +1381,60 @@ struct SessionNameCollisionTests {
 
         #expect(store.forwardSessionNames() == ["db-tunnel"])
         #expect(store.syncSessionNames() == ["web-app"])
+    }
+}
+
+@Suite("Selection after recreate")
+struct RecreateSelectionTests {
+
+    @Test("Selects the session that recreate produced")
+    @MainActor
+    func selectsRecreatedSession() async {
+        let old = makeSyncSession(id: "sync_old", name: "test")
+        let new = makeSyncSession(id: "sync_new", name: "test")
+        let recorder = RecordingProvider(syncSessions: [old], sessionsAfterCreate: [new])
+        let store = SessionStore(provider: recorder)
+        await store.refresh()
+
+        var opts = SyncCreateOptions()
+        opts.name = "test"
+        await store.recreateSync(old, options: opts, alpha: "/tmp/a", beta: "/tmp/b")
+
+        #expect(store.pendingSessionSelection == "sync_new")
+    }
+
+    @Test("Leaves selection alone when untouched sessions are present")
+    @MainActor
+    func ignoresPreexistingSessions() async {
+        let other = makeSyncSession(id: "sync_other", name: "other")
+        let old = makeSyncSession(id: "sync_old", name: "test")
+        let new = makeSyncSession(id: "sync_new", name: "test")
+        let recorder = RecordingProvider(
+            syncSessions: [other, old],
+            sessionsAfterCreate: [other, new]
+        )
+        let store = SessionStore(provider: recorder)
+        await store.refresh()
+
+        var opts = SyncCreateOptions()
+        opts.name = "test"
+        await store.recreateSync(old, options: opts, alpha: "/tmp/a", beta: "/tmp/b")
+
+        #expect(store.pendingSessionSelection == "sync_new")
+    }
+
+    @Test("Sets no selection when recreate produced nothing new")
+    @MainActor
+    func noSelectionWithoutNewSession() async {
+        let old = makeSyncSession(id: "sync_old", name: "test")
+        let recorder = RecordingProvider(syncSessions: [old], sessionsAfterCreate: [old])
+        let store = SessionStore(provider: recorder)
+        await store.refresh()
+
+        var opts = SyncCreateOptions()
+        opts.name = "test"
+        await store.recreateSync(old, options: opts, alpha: "/tmp/a", beta: "/tmp/b")
+
+        #expect(store.pendingSessionSelection == nil)
     }
 }
