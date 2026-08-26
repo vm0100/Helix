@@ -175,9 +175,10 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 91086F7E0015076CC7FE90CA /* Build configuration list for PBXProject "Helix" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -191,6 +192,7 @@
 				2F73893906C71648FB5CEFF5 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 226712019E6A7970B816F0DB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

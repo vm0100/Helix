@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="Platform">
     <img src="https://img.shields.io/badge/requirements-macOS%2014%2B-fa4e49?style=flat-square" alt="Requirements">
     <img src="https://img.shields.io/badge/swift-5.9-F05138?style=flat-square" alt="Swift">
-    <img src="https://img.shields.io/badge/version-2026.2.2-blue?style=flat-square" alt="Version">
+    <img src="https://img.shields.io/badge/version-2026.8.0-blue?style=flat-square" alt="Version">
     <a href="https://helix.hexul.com"><img src="https://img.shields.io/badge/website-helix.hexul.com-4A90D9?style=flat-square" alt="Website"></a>
 </p>
 
@@ -21,7 +21,11 @@
 - **Create sessions** -- Step-by-step wizard for sync sessions; streamlined form for port forwarding
 - **Edit sessions** -- Rename a session, or change its sync mode, ignore rules, symlinks, compression, and watch settings
 - **Unique names** -- Rejects a name another session already holds, so `mutagen sync pause <name>` always resolves to one session
+- **Labels** -- Tag sessions with key=value pairs and filter the dashboard by them
+- **Connection testing** -- Check an SSH endpoint before creating a session, then browse the remote filesystem to pick a path
 - **Conflict resolution** -- Inspect per-file conflicts side by side, keep either side with one click across local, SSH, and Docker endpoints; handles file-vs-directory type mismatches with confirmation before destructive operations
+- **Diff viewer** -- Line and word-level diffs of conflicting files, backed by a Rust engine
+- **Symlink awareness** -- Shows what each side of a symlink conflict points at, and replaces a symlink with a directory where that is the only resolution
 - **Endpoint support** -- Local paths, SSH remotes, and Docker containers with transport-aware file operations
 - **Git mismatch detection** -- Detects when a git repo exists on one sync endpoint but not the other, with automatic fix to initialize the missing side
 - **Console log** -- Dark-themed (Tokyo Night) panel with timestamped, color-coded CLI output and full multi-line text selection
