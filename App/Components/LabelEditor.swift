@@ -79,10 +79,10 @@ struct LabelEditor: View {
     private var validationError: String? {
         guard let key = parsedKey else { return nil }
         if key.isEmpty {
-            return "Key cannot be empty"
+            return "键不能为空"
         }
         if labels.keys.contains(key) {
-            return "Key '\(key)' already exists"
+            return "键“\(key)”已存在"
         }
         return nil
     }

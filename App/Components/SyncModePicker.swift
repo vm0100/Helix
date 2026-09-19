@@ -11,30 +11,30 @@ struct SyncModePicker: View {
             ModeOption(
                 mode: "two-way-safe",
                 selected: $selectedMode,
-                title: "Two-Way Safe",
-                description: "Changes sync both directions. Conflicts require manual resolution.",
-                hint: "Best for active development on both sides"
+                title: "双向安全",
+                description: "变更双向同步，冲突需要手动解决。",
+                hint: "适合两端同时进行开发"
             )
             ModeOption(
                 mode: "two-way-resolved",
                 selected: $selectedMode,
-                title: "Two-Way Resolved",
-                description: "Changes sync both directions. Alpha wins all conflicts automatically.",
-                hint: "Best when one side is authoritative but both change"
+                title: "双向已解决",
+                description: "变更双向同步，冲突始终自动以甲端为准。",
+                hint: "适合一端权威但两端都会变更的场景"
             )
             ModeOption(
                 mode: "one-way-safe",
                 selected: $selectedMode,
-                title: "One-Way Safe",
-                description: "Alpha to beta only. Detects conflicting changes on beta.",
-                hint: "Best for deploying from source to target"
+                title: "单向安全",
+                description: "仅从甲端同步到乙端，并检测乙端的冲突变更。",
+                hint: "适合从源端部署到目标端"
             )
             ModeOption(
                 mode: "one-way-replica",
                 selected: $selectedMode,
-                title: "One-Way Replica",
-                description: "Alpha to beta only. Beta always mirrors alpha exactly.",
-                hint: "Best for read-only mirrors and backups"
+                title: "单向副本",
+                description: "仅从甲端同步到乙端，乙端始终完全镜像甲端。",
+                hint: "适合只读镜像和备份"
             )
         }
     }

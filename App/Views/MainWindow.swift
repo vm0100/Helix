@@ -335,12 +335,12 @@ private struct SyncListRow: View {
                 Text(session.name ?? String(session.identifier.prefix(12)))
                     .fontWeight(isSelected ? .semibold : .regular)
                 HStack(spacing: 4) {
-                    Text(session.alpha.protocol_)
+                    Text(protocolLabel(session.alpha.protocol_))
                         .foregroundStyle(isSelected ? .white.opacity(0.7) : .blue)
                     Image(systemName: (session.mode ?? "two-way-safe").hasPrefix("one-way") ? "arrow.right" : "arrow.left.arrow.right")
                         .font(.caption2)
                         .foregroundStyle(isSelected ? .white.opacity(0.5) : .secondary)
-                    Text(session.beta.protocol_)
+                    Text(protocolLabel(session.beta.protocol_))
                         .foregroundStyle(isSelected ? .white.opacity(0.7) : .purple)
                 }
                 .font(.caption)
@@ -366,7 +366,7 @@ private struct SyncListRow: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption2)
                     .foregroundStyle(isSelected ? .white.opacity(0.7) : .orange)
-                    .help("Git repository mismatch")
+                    .help("Git 仓库不一致")
             }
 
             if let conflicts = session.conflicts, !conflicts.isEmpty {
@@ -388,6 +388,15 @@ private struct SyncListRow: View {
         )
         .task(id: "\(session.identifier):\(store.refreshCount)") {
             gitCheck = await store.gitRepoStatus(for: session)
+        }
+    }
+
+    private func protocolLabel(_ value: String) -> String {
+        switch value {
+        case "local": return "本地"
+        case "ssh": return "SSH"
+        case "docker": return "Docker"
+        default: return value
         }
     }
 }
@@ -451,7 +460,7 @@ private struct DaemonStatusView: View {
             Circle()
                 .fill(running ? .green : .red)
                 .frame(width: 6, height: 6)
-            Text("Daemon: \(running ? "Running" : "Stopped")")
+            Text("守护进程：\(running ? "运行中" : "已停止")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

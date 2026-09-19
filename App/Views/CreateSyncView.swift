@@ -93,7 +93,7 @@ struct CreateSyncView: View {
     }
 
     private var stepLabels: [String] {
-        ["Endpoints", "Mode", "Options", "Review"]
+        ["端点", "模式", "选项", "确认"]
     }
 
     // MARK: - Step 1: Endpoints
@@ -137,7 +137,7 @@ struct CreateSyncView: View {
                 }
 
                 EndpointPicker(
-                    label: "Alpha (Source)",
+                    label: "甲端（源端）",
                     transport: $alphaTransport,
                     path: $alphaPath,
                     host: $alphaHost,
@@ -147,7 +147,7 @@ struct CreateSyncView: View {
                 )
 
                 EndpointPicker(
-                    label: "Beta (Destination)",
+                    label: "乙端（目标端）",
                     transport: $betaTransport,
                     path: $betaPath,
                     host: $betaHost,
@@ -197,13 +197,13 @@ struct CreateSyncView: View {
                 if !sessionName.isEmpty {
                     LabeledContent("Name", value: sessionName)
                 }
-                LabeledContent("Alpha") {
+                LabeledContent("甲端") {
                     Text(alphaEndpoint.formatted).monospaced()
                 }
-                LabeledContent("Beta") {
+                LabeledContent("乙端") {
                     Text(betaEndpoint.formatted).monospaced()
                 }
-                LabeledContent("Mode", value: syncMode)
+                LabeledContent("模式", value: syncModeDisplay)
                 if !labels.isEmpty {
                     LabeledContent("Labels") {
                         Text(labels.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", "))
@@ -298,11 +298,21 @@ struct CreateSyncView: View {
         SessionName.validate(sessionName, existingNames: store.syncSessionNames())?.message
     }
 
+    private var syncModeDisplay: String {
+        switch syncMode {
+        case "two-way-safe": return "双向安全"
+        case "two-way-resolved": return "双向已解决"
+        case "one-way-safe": return "单向安全"
+        case "one-way-replica": return "单向副本"
+        default: return syncMode
+        }
+    }
+
     // MARK: - Data Assembly
 
     private var alphaEndpointPicker: EndpointPicker {
-        EndpointPicker(
-            label: "Alpha",
+            EndpointPicker(
+            label: "甲端",
             transport: .constant(alphaTransport),
             path: .constant(alphaPath),
             host: .constant(alphaHost),
@@ -314,7 +324,7 @@ struct CreateSyncView: View {
 
     private var betaEndpointPicker: EndpointPicker {
         EndpointPicker(
-            label: "Beta",
+            label: "乙端",
             transport: .constant(betaTransport),
             path: .constant(betaPath),
             host: .constant(betaHost),

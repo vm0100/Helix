@@ -76,8 +76,8 @@ struct DiffView: View {
                     pendingWinner = nil
                 }
             } message: {
-                let loserLabel = pendingWinner == .alpha ? "Beta" : "Alpha"
-                Text("This will permanently delete the \(loserLabel) version of \"\(conflict.root)\" and replace it with the selected side.")
+            let loserLabel = pendingWinner == .alpha ? "乙端" : "甲端"
+            Text("这将永久删除“\(conflict.root)”的\(loserLabel)版本，并替换为选中的一端。")
             }
     }
 
@@ -171,7 +171,7 @@ struct DiffView: View {
                 .padding(8)
             } else {
                 Button { pendingWinner = .alpha } label: {
-                    Label("Keep Alpha", systemImage: "checkmark.circle.fill")
+                    Label("保留甲端", systemImage: "checkmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -179,7 +179,7 @@ struct DiffView: View {
                 .padding(8)
 
                 Button { pendingWinner = .beta } label: {
-                    Label("Keep Beta", systemImage: "checkmark.circle.fill")
+                    Label("保留乙端", systemImage: "checkmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -192,7 +192,7 @@ struct DiffView: View {
 
     private var columnHeaders: some View {
         HStack(spacing: 0) {
-            Text("Alpha (\(session.alpha.shortLabel))")
+            Text("甲端（\(session.alpha.shortLabel)）")
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.blue)
@@ -203,7 +203,7 @@ struct DiffView: View {
             Divider()
                 .frame(height: 20)
 
-            Text("Beta (\(session.beta.shortLabel))")
+            Text("乙端（\(session.beta.shortLabel)）")
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.purple)
@@ -301,7 +301,7 @@ struct DiffView: View {
             hunks = result
             rows = buildRows(from: result)
         } else {
-            error = "Could not read file contents from one or both endpoints."
+            error = "无法读取一端或两端的文件内容。"
         }
         isLoading = false
     }

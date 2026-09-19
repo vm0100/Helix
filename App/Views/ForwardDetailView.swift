@@ -71,7 +71,7 @@ struct ForwardDetailView: View {
                 Circle()
                     .fill(session.source.connected == true ? .green : .red)
                     .frame(width: 8, height: 8)
-                Text(session.paused ? "Paused" : (session.source.connected == true ? "Connected" : "Disconnected"))
+                Text(session.paused ? "已暂停" : (session.source.connected == true ? "已连接" : "未连接"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -111,7 +111,7 @@ struct ForwardDetailView: View {
                 .font(.headline)
 
             HStack(alignment: .top, spacing: 0) {
-                ForwardEndpointCard(label: "Source", endpoint: session.source, address: session.sourceEndpoint)
+                ForwardEndpointCard(label: "源端", endpoint: session.source, address: session.sourceEndpoint)
 
                 VStack(spacing: 4) {
                     Image(systemName: "arrow.right")
@@ -123,7 +123,7 @@ struct ForwardDetailView: View {
                 .frame(width: 56)
                 .padding(.top, 16)
 
-                ForwardEndpointCard(label: "Destination", endpoint: session.destination, address: session.destinationEndpoint)
+                ForwardEndpointCard(label: "目标端", endpoint: session.destination, address: session.destinationEndpoint)
             }
         }
     }
@@ -133,19 +133,19 @@ struct ForwardDetailView: View {
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                 if let mode = socket.overwriteMode {
                     GridRow {
-                        Text("Overwrite Mode").foregroundStyle(.secondary)
+                        Text("覆盖模式").foregroundStyle(.secondary)
                         Text(mode)
                     }
                 }
                 if let owner = socket.owner {
                     GridRow {
-                        Text("Owner").foregroundStyle(.secondary)
+                        Text("所有者").foregroundStyle(.secondary)
                         Text(owner)
                     }
                 }
                 if let group = socket.group {
                     GridRow {
-                        Text("Group").foregroundStyle(.secondary)
+                        Text("用户组").foregroundStyle(.secondary)
                         Text(group)
                     }
                 }
@@ -153,7 +153,7 @@ struct ForwardDetailView: View {
             .font(.caption)
             .padding(.top, 4)
         } label: {
-            Text("Socket Configuration")
+                    Text("套接字配置")
                 .contentShape(Rectangle())
                 .onTapGesture { showSocket.toggle() }
         }
@@ -202,18 +202,18 @@ private struct ForwardEndpointCard: View {
                 Circle()
                     .fill(endpoint.connected == true ? .green : .red)
                     .frame(width: 6, height: 6)
-                    .accessibilityLabel(endpoint.connected == true ? "Connected" : "Disconnected")
+                    .accessibilityLabel(endpoint.connected == true ? "已连接" : "未连接")
             }
 
-            LabeledContent("Transport", value: endpoint.protocol_)
+            LabeledContent("传输方式", value: protocolLabel(endpoint.protocol_))
             if let user = endpoint.user {
-                LabeledContent("User", value: user)
+                LabeledContent("用户", value: user)
             }
             if let host = endpoint.host {
-                LabeledContent("Host", value: host)
+                LabeledContent("主机", value: host)
             }
             if let addr = address {
-                LabeledContent("Address") {
+                LabeledContent("地址") {
                     Text(addr)
                         .monospaced()
                         .lineLimit(1)
@@ -224,5 +224,14 @@ private struct ForwardEndpointCard: View {
         .padding(10)
         .background(.background.secondary)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func protocolLabel(_ value: String) -> String {
+        switch value {
+        case "local": return "本地"
+        case "ssh": return "SSH"
+        case "docker": return "Docker"
+        default: return value
+        }
     }
 }

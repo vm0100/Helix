@@ -39,7 +39,17 @@ struct StatusBadge: View {
     }
 
     var label: String {
-        if paused { return "Paused" }
-        return status.capitalized
+        if paused { return "已暂停" }
+        switch status {
+        case "watching": return "监视中"
+        case "scanning": return "扫描中"
+        case "staging": return "暂存中"
+        case "transitioning": return "切换中"
+        case "saving": return "保存中"
+        case "halted": return "已停止"
+        case "connecting": return "连接中"
+        case "disconnected": return "未连接"
+        default: return status
+        }
     }
 }

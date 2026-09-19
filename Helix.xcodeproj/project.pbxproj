@@ -17,6 +17,7 @@
 		5DDE83060B5C93A12CA7E757 /* SyncModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891C37B09E27AEF0D77BD41B /* SyncModePicker.swift */; };
 		5E7722A6240EFDC19E3EF1FC /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B9C9847DC36C9AEC8903D8 /* StatusBadge.swift */; };
 		90BFC7B4462546B4B085EAC6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B89BDB8EDDE71EC0F994D15F /* Assets.xcassets */; };
+		91C7B5F2A6D34A9D8F4E2C11 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 91C7B5F1A6D34A9D8F4E2C11 /* Localizable.strings */; };
 		A822F18CA17E4F696B98CE2E /* DiffSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F88716041EC41F9C17EABFFC /* DiffSheet.swift */; };
 		AFD90EC354D70157A8DEC39C /* SyncOptionsForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBBC27168C841EDC267E4911 /* SyncOptionsForm.swift */; };
 		B5628ACDDDD9D1F73B808D77 /* LabelEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFEE0165893EA3FA23A1622 /* LabelEditor.swift */; };
@@ -54,6 +55,7 @@
 		B8BF6A6A95EC5EDB618A40AF /* ConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleView.swift; sourceTree = "<group>"; };
 		BDF5604DB3B4CB89CAC4109E /* UpdaterButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterButton.swift; sourceTree = "<group>"; };
 		D1B659FFDBAC7D3C71504DF1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		91C7B5F1A6D34A9D8F4E2C11 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = zh-Hans.lproj/Localizable.strings; sourceTree = "<group>"; };
 		E2C77F55266B4698D2DF5726 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
 		EBBC27168C841EDC267E4911 /* SyncOptionsForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncOptionsForm.swift; sourceTree = "<group>"; };
 		F88716041EC41F9C17EABFFC /* DiffSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffSheet.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				B89BDB8EDDE71EC0F994D15F /* Assets.xcassets */,
+				91C7B5F1A6D34A9D8F4E2C11 /* Localizable.strings */,
 				9CE5AC6C882BDBCDB4C6C41F /* HelixApp.swift */,
 				D1B659FFDBAC7D3C71504DF1 /* Info.plist */,
 				B29E0235E826AAC737A322A2 /* Components */,
@@ -207,6 +210,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				90BFC7B4462546B4B085EAC6 /* Assets.xcassets in Resources */,
+				91C7B5F2A6D34A9D8F4E2C11 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -470,6 +474,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		313C9AA3D5A9CD038EF2DF8A /* HelixKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 2F73893906C71648FB5CEFF5 /* XCLocalSwiftPackageReference \".\" */;
 			productName = HelixKit;
 		};
 		A997EB8488CFF05515BCE68A /* Sparkle */ = {

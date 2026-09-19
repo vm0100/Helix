@@ -47,7 +47,7 @@ struct EditSyncConfigView: View {
 
                     DisclosureGroup(isExpanded: $labelsExpanded) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Tag sessions for filtering and batch operations.")
+                            Text("为会话添加标签，以便筛选和批量操作。")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                             LabelEditor(labels: $labels)
@@ -55,7 +55,7 @@ struct EditSyncConfigView: View {
                         .padding(.top, 4)
                     } label: {
                         HStack(spacing: 6) {
-                            Text("Labels")
+                            Text("标签")
                             if !labels.isEmpty {
                                 Text("\(labels.count)")
                                     .font(.caption2)
@@ -73,7 +73,7 @@ struct EditSyncConfigView: View {
                         .onTapGesture { labelsExpanded.toggle() }
                     }
 
-                    Text("Synchronization Mode")
+                    Text("同步模式")
                         .font(.headline)
                     SyncModePicker(selectedMode: $syncMode)
                     SyncOptionsForm(
@@ -99,7 +99,7 @@ struct EditSyncConfigView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Edit Session")
+            Text("编辑会话")
                 .font(.headline)
             Text(session.name ?? session.identifier)
                 .font(.caption)
@@ -113,7 +113,7 @@ struct EditSyncConfigView: View {
 
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Name")
+            Text("名称")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
@@ -140,17 +140,17 @@ struct EditSyncConfigView: View {
 
     private var endpointSummary: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Endpoints")
+            Text("端点")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                endpointLabel("Alpha", session.alpha.endpointURL.formatted)
+                endpointLabel("甲端", session.alpha.endpointURL.formatted)
                 Image(systemName: "arrow.left.arrow.right")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                endpointLabel("Beta", session.beta.endpointURL.formatted)
+                endpointLabel("乙端", session.beta.endpointURL.formatted)
             }
         }
     }
@@ -179,9 +179,9 @@ struct EditSyncConfigView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Session will be recreated")
+                Text("会话将被重新创建")
                     .fontWeight(.medium)
-                Text("Mutagen does not support editing sessions in place. Applying changes will terminate the current session and create a new one. Sync history and cycle count will be reset.")
+                Text("Mutagen 不支持直接编辑会话。应用更改会终止当前会话并创建新会话，同步历史和同步次数将被重置。")
                     .foregroundStyle(.secondary)
             }
         }

@@ -33,6 +33,10 @@ public enum HealthStatus: Sendable {
 @MainActor
 @Observable
 public final class SessionStore {
+    private static let activeStatuses: Set<String> = [
+        "scanning", "staging", "transitioning", "saving",
+    ]
+
     public private(set) var syncSessions: [SyncSession] = []
     public private(set) var forwardSessions: [ForwardSession] = []
     public private(set) var daemonRunning = false
@@ -45,6 +49,7 @@ public final class SessionStore {
     private var provider: any SessionProvider
     private var pollingTask: Task<Void, Never>?
     private let fileTransport: FileTransport
+    private var refreshGeneration = 0
 
     public init(provider: any SessionProvider, fileTransport: FileTransport = FileTransport()) {
         self.provider = provider
@@ -96,9 +101,7 @@ public final class SessionStore {
         if hasConflicts || hasHalted {
             return .warning
         }
-        let hasActive = syncSessions.contains {
-            ["scanning", "staging", "transitioning", "saving"].contains($0.status)
-        }
+        let hasActive = syncSessions.contains { Self.activeStatuses.contains($0.status) }
         if hasActive {
             return .active
         }
@@ -106,16 +109,19 @@ public final class SessionStore {
     }
 
     public func refresh() async {
+        let generation = beginRefresh()
         do {
             async let syncs = provider.syncList()
             async let forwards = provider.forwardList()
             let newSyncs = preserveConflicts(old: syncSessions, new: try await syncs)
             let newForwards = try await forwards
+            guard isCurrentRefresh(generation) else { return }
             if syncDigest(newSyncs) != syncDigest(syncSessions) { syncSessions = newSyncs }
             if forwardDigest(newForwards) != forwardDigest(forwardSessions) { forwardSessions = newForwards }
             if !daemonRunning { daemonRunning = true }
             if lastError != nil { lastError = nil }
         } catch {
+            guard isCurrentRefresh(generation) else { return }
             if !daemonRunning || lastError != error.localizedDescription {
                 daemonRunning = false
                 lastError = error.localizedDescription
@@ -124,14 +130,19 @@ public final class SessionStore {
     }
 
     public func manualRefresh() async {
+        let generation = beginRefresh()
         do {
             async let syncs = provider.syncList()
             async let forwards = provider.forwardList()
-            syncSessions = try await syncs
-            forwardSessions = try await forwards
+            let newSyncs = try await syncs
+            let newForwards = try await forwards
+            guard isCurrentRefresh(generation) else { return }
+            syncSessions = newSyncs
+            forwardSessions = newForwards
             if !daemonRunning { daemonRunning = true }
             if lastError != nil { lastError = nil }
         } catch {
+            guard isCurrentRefresh(generation) else { return }
             if !daemonRunning || lastError != error.localizedDescription {
                 daemonRunning = false
                 lastError = error.localizedDescription
@@ -163,7 +174,7 @@ public final class SessionStore {
         do {
             try await provider.syncTerminate(session.identifier)
         } catch {
-            lastError = "Terminate failed: \(error.localizedDescription). No changes were made."
+            lastError = "终止失败：\(error.localizedDescription)。未进行任何更改。"
             return
         }
 
@@ -179,7 +190,7 @@ public final class SessionStore {
                 pendingSessionSelection = recreated.identifier
             }
         } catch {
-            lastError = "Session terminated but recreation failed: \(error.localizedDescription). Use Create Session to recreate manually."
+            lastError = "会话已终止，但重新创建失败：\(error.localizedDescription)。请使用“创建会话”手动重建。"
         }
     }
 
@@ -361,7 +372,7 @@ public final class SessionStore {
             ConsoleLog.shared.log("  paused session")
         } catch {
             ConsoleLog.shared.log("  pause FAILED: \(error.localizedDescription)", level: .error)
-            lastError = "Failed to pause session: \(error.localizedDescription)"
+            lastError = "暂停会话失败：\(error.localizedDescription)"
             return
         }
 
@@ -373,7 +384,7 @@ public final class SessionStore {
                 let exists = try await fileTransport.pathExists(endpoint: winnerURL)
                 guard exists else {
                     ConsoleLog.shared.log("  winner file no longer exists at \(winnerURL.formatted)", level: .error)
-                    lastError = "The file \"\(conflict.root)\" no longer exists at the source. It may have been renamed or deleted. Try refreshing sessions."
+                    lastError = "源端已不存在文件“\(conflict.root)”，它可能已被重命名或删除。请尝试刷新会话。"
                     try? await provider.syncResume(session.identifier)
                     return
                 }
@@ -397,6 +408,7 @@ public final class SessionStore {
             ConsoleLog.shared.log("  resumed session")
             try await provider.syncFlush(session.identifier)
             ConsoleLog.shared.log("  flush succeeded")
+            clearConflicts(sessionID: session.identifier, roots: [conflict.root])
             lastError = nil
         } catch {
             ConsoleLog.shared.log("  flush FAILED: \(error.localizedDescription)", level: .error)
@@ -418,12 +430,13 @@ public final class SessionStore {
             ConsoleLog.shared.log("  paused session")
         } catch {
             ConsoleLog.shared.log("  pause FAILED: \(error.localizedDescription)", level: .error)
-            lastError = "Failed to pause session: \(error.localizedDescription)"
+            lastError = "暂停会话失败：\(error.localizedDescription)"
             return
         }
 
         var resolved = 0
         var failed = 0
+        var resolvedRoots = Set<String>()
         for conflict in conflicts {
             let alphaURL = appendingSubpath(to: session.alpha.endpointURL, subpath: conflict.root)
             let betaURL = appendingSubpath(to: session.beta.endpointURL, subpath: conflict.root)
@@ -448,6 +461,7 @@ public final class SessionStore {
                     try await fileTransport.copy(from: winnerURL, to: loserURL)
                 }
                 resolved += 1
+                resolvedRoots.insert(conflict.root)
             } catch {
                 ConsoleLog.shared.log("  failed '\(conflict.root)': \(error.localizedDescription)", level: .error)
                 failed += 1
@@ -459,6 +473,7 @@ public final class SessionStore {
         do {
             try await provider.syncResume(session.identifier)
             try await provider.syncFlush(session.identifier)
+            clearConflicts(sessionID: session.identifier, roots: resolvedRoots)
             if failed > 0 {
                 lastError = "\(failed) of \(conflicts.count) conflicts could not be resolved."
             } else {
@@ -595,12 +610,12 @@ public final class SessionStore {
             remoteURL = try await fileTransport.run(on: sourceEndpoint, command: "git config --get remote.origin.url").trimmingCharacters(in: .whitespacesAndNewlines)
             branch = try await fileTransport.run(on: sourceEndpoint, command: "git branch --show-current").trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
-            lastError = "Could not read git info: \(error.localizedDescription)"
+            lastError = "无法读取 Git 信息：\(error.localizedDescription)"
             return false
         }
 
         guard !remoteURL.isEmpty, !branch.isEmpty else {
-            lastError = "No git remote or branch found on the source endpoint"
+            lastError = "源端未找到 Git 远程仓库或分支"
             return false
         }
 
@@ -612,7 +627,7 @@ public final class SessionStore {
             lastError = nil
             return true
         } catch {
-            lastError = "Git init failed: \(error.localizedDescription)"
+            lastError = "Git 初始化失败：\(error.localizedDescription)"
             return false
         }
     }
@@ -647,12 +662,22 @@ public final class SessionStore {
 
     // MARK: - Private
 
+    private func beginRefresh() -> Int {
+        refreshGeneration &+= 1
+        return refreshGeneration
+    }
+
+    private func isCurrentRefresh(_ generation: Int) -> Bool {
+        generation == refreshGeneration
+    }
+
     /// Carries forward known conflicts when new poll data has nil conflicts (mid-scan).
     /// Go protobuf omits empty repeated fields, so mid-scan JSON has `conflicts: null`.
     private func preserveConflicts(old: [SyncSession], new: [SyncSession]) -> [SyncSession] {
         let oldByID = Dictionary(uniqueKeysWithValues: old.map { ($0.identifier, $0) })
         return new.map { session in
             guard session.conflicts == nil,
+                  Self.activeStatuses.contains(session.status),
                   let previous = oldByID[session.identifier],
                   previous.conflicts != nil else {
                 return session
@@ -661,6 +686,15 @@ public final class SessionStore {
             patched.conflicts = previous.conflicts
             return patched
         }
+    }
+
+    private func clearConflicts(sessionID: String, roots: Set<String>) {
+        guard let index = syncSessions.firstIndex(where: { $0.identifier == sessionID }),
+              var conflicts = syncSessions[index].conflicts else {
+            return
+        }
+        conflicts.removeAll { roots.contains($0.root) }
+        syncSessions[index].conflicts = conflicts.isEmpty ? nil : conflicts
     }
 
     /// Hashes fields that affect the UI (identity, status, conflicts, connectivity).

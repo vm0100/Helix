@@ -57,7 +57,7 @@ struct SettingsView: View {
                     Circle()
                         .fill(store.daemonRunning ? .green : .red)
                         .frame(width: 8, height: 8)
-                    Text(store.daemonRunning ? "Running" : "Stopped")
+                    Text(store.daemonRunning ? "运行中" : "已停止")
                     Spacer()
 
                     if store.daemonRunning {

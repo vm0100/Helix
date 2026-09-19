@@ -17,13 +17,13 @@ public enum SessionNameError: Equatable, Sendable {
     public var message: String {
         switch self {
         case .reserved:
-            return "\"defaults\" is reserved"
+            return "“defaults”是保留名称"
         case .mustStartWithLetter:
-            return "Must start with a letter"
+            return "必须以字母开头"
         case .invalidCharacter(let character):
-            return "Invalid character: '\(character)' — only letters, numbers, and dashes allowed"
+            return "无效字符：“\(character)”——只能使用字母、数字和短横线"
         case .duplicate:
-            return "A session with this name already exists"
+            return "已存在同名会话"
         }
     }
 }

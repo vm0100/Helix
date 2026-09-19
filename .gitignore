@@ -3,5 +3,9 @@ build/
 .claude/
 .swiftpm/
 DerivedData/
-*.xcodeproj/xcuserdata/
+**/xcuserdata/
 RustDiff/target/
+
+# Local macOS files and packaged build artifacts
+.DS_Store
+dist/

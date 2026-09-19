@@ -8,6 +8,14 @@ enum TransportType: String, CaseIterable {
     case local = "Local"
     case ssh = "SSH"
     case docker = "Docker"
+
+    var displayName: String {
+        switch self {
+        case .local: return "本地"
+        case .ssh: return "SSH"
+        case .docker: return "Docker"
+        }
+    }
 }
 
 struct EndpointPicker: View {
@@ -34,7 +42,7 @@ struct EndpointPicker: View {
 
             Picker("Transport", selection: $transport) {
                 ForEach(TransportType.allCases, id: \.self) { type in
-                    Text(type.rawValue).tag(type)
+                    Text(type.displayName).tag(type)
                 }
             }
             .pickerStyle(.segmented)

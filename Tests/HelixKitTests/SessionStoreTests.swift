@@ -579,6 +579,7 @@ struct ConflictResolutionTests {
 
         // No additional syncList call — polling handles the refresh
         #expect(refreshCountAfter == refreshCountBefore)
+        #expect(store.totalConflictCount == 0)
         // Transport operations still attempted (check + rm + cp)
         #expect(copyRecorder.commands.count == 3)
         // Flush still called

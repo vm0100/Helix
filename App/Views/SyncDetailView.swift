@@ -3,6 +3,7 @@
 
 import SwiftUI
 import HelixKit
+import Darwin
 
 struct SyncDetailView: View {
     let session: SyncSession
@@ -104,9 +105,9 @@ struct SyncDetailView: View {
             HStack(spacing: 16) {
                 Label((session.mode ?? "two-way-safe").replacingOccurrences(of: "-", with: " ").capitalized, systemImage: "arrow.triangle.2.circlepath")
                 if let cycles = session.successfulCycles {
-                    Label("\(cycles) cycles", systemImage: "checkmark.circle")
+                    Label("\(cycles) 次同步", systemImage: "checkmark.circle")
                 }
-                Label(session.creationTime.prefix(10).description, systemImage: "calendar")
+                Label(creationTimeLabel, systemImage: "calendar")
             }
             .font(.callout)
             .foregroundStyle(.secondary)
@@ -132,6 +133,10 @@ struct SyncDetailView: View {
                     .padding(.top, 2)
             }
         }
+    }
+
+    private var creationTimeLabel: String {
+        String(session.creationTime.prefix(19)).replacingOccurrences(of: "T", with: " ")
     }
 
     private var actionButtons: some View {
@@ -180,7 +185,7 @@ struct SyncDetailView: View {
                 .font(.headline)
 
             HStack(alignment: .top, spacing: 0) {
-                EndpointCard(label: "Alpha", color: .blue, endpoint: session.alpha)
+                EndpointCard(label: "甲端", color: .blue, endpoint: session.alpha)
 
                 VStack(spacing: 4) {
                     Image(systemName: isOneWay ? "arrow.right" : "arrow.left.arrow.right")
@@ -192,7 +197,7 @@ struct SyncDetailView: View {
                 .frame(width: 56)
                 .padding(.top, 16)
 
-                EndpointCard(label: "Beta", color: .purple, endpoint: session.beta)
+                EndpointCard(label: "乙端", color: .purple, endpoint: session.beta)
             }
         }
     }
@@ -207,20 +212,20 @@ struct SyncDetailView: View {
 
     private var syncModeLabel: String {
         switch session.mode ?? "two-way-safe" {
-        case "two-way-safe": "Two-Way"
-        case "two-way-resolved": "Resolved"
-        case "one-way-safe": "One-Way"
-        case "one-way-replica": "Replica"
-        default: session.mode ?? "sync"
+        case "two-way-safe": "双向安全"
+        case "two-way-resolved": "双向已解决"
+        case "one-way-safe": "单向安全"
+        case "one-way-replica": "单向副本"
+        default: session.mode ?? "同步"
         }
     }
 
     // MARK: - Git Mismatch Banner
 
     private var gitMismatchBanner: some View {
-        let hasGitLabel = gitCheck.status == .alphaOnly ? "Alpha" : "Beta"
+        let hasGitLabel = gitCheck.status == .alphaOnly ? "甲端" : "乙端"
         let hasGitColor: Color = gitCheck.status == .alphaOnly ? .blue : .purple
-        let missingGitLabel = gitCheck.status == .alphaOnly ? "Beta" : "Alpha"
+        let missingGitLabel = gitCheck.status == .alphaOnly ? "乙端" : "甲端"
         let missingGitColor: Color = gitCheck.status == .alphaOnly ? .purple : .blue
         let missingEndpoint = gitCheck.status == .alphaOnly ? session.beta : session.alpha
         let basePath = missingEndpoint.path ?? "<path>"
@@ -240,10 +245,10 @@ struct SyncDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            (Text(hasGitLabel).foregroundStyle(hasGitColor).fontWeight(.semibold)
-             + Text(" has a .git directory, but ")
+                (Text(hasGitLabel).foregroundStyle(hasGitColor).fontWeight(.semibold)
+             + Text("存在 .git 目录，但")
              + Text(missingGitLabel).foregroundStyle(missingGitColor).fontWeight(.semibold)
-             + Text(" does not. This typically happens when .git is excluded from sync (which is correct) but only one side has been initialized as a git repo."))
+             + Text("不存在。这通常是因为 .git 被排除在同步之外（这是正确的），但只有一端初始化成了 Git 仓库。"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -261,7 +266,7 @@ struct SyncDetailView: View {
                     HStack(spacing: 6) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Initializing git...")
+                        Text("正在初始化 Git…")
                     }
                 } else {
                     Label("Fix Automatically", systemImage: "wand.and.stars")
@@ -273,9 +278,9 @@ struct SyncDetailView: View {
 
             if sourceRemoteURL == nil {
                 Label {
-                    Text("No git remote configured on the ")
+                    Text("此端未配置 Git 远程仓库：")
                     + Text(hasGitLabel).foregroundStyle(hasGitColor).fontWeight(.semibold)
-                    + Text(" endpoint. Add a remote first, or use the manual commands below.")
+                    + Text("。请先添加远程仓库，或使用下面的手动命令。")
                 } icon: {
                     Image(systemName: "info.circle.fill")
                 }
@@ -285,9 +290,9 @@ struct SyncDetailView: View {
 
             DisclosureGroup(isExpanded: $showManualFix) {
                 VStack(alignment: .leading, spacing: 4) {
-                    (Text("Run these commands on the ")
+                    (Text("请在")
                      + Text(missingGitLabel).foregroundStyle(missingGitColor).fontWeight(.semibold)
-                     + Text(" endpoint:"))
+                     + Text("执行以下命令："))
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
@@ -350,11 +355,11 @@ struct SyncDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                configRow("Mode", session.mode ?? "two-way-safe")
-                configRow("Symlinks", session.symlink.mode ?? "portable")
-                configRow("Watch", session.watch.mode ?? "portable")
-                configRow("Permissions", session.permissions.mode ?? "portable")
-                configRow("Compression", session.compression.algorithm ?? "deflate")
+                configRow("模式", localizedConfigValue(session.mode ?? "two-way-safe"))
+                configRow("符号链接", localizedConfigValue(session.symlink.mode ?? "portable"))
+                configRow("监视", localizedConfigValue(session.watch.mode ?? "portable"))
+                configRow("权限", localizedConfigValue(session.permissions.mode ?? "portable"))
+                configRow("压缩", localizedConfigValue(session.compression.algorithm ?? "deflate"))
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
@@ -473,7 +478,7 @@ struct SyncDetailView: View {
                     if session.alpha.protocol_ == "local" {
                         Image(systemName: "laptopcomputer")
                     }
-                    Text("Keep All Alpha")
+                    Text("全部保留甲端")
                 }
             }
             .buttonStyle(.bordered)
@@ -488,13 +493,34 @@ struct SyncDetailView: View {
                     if session.beta.protocol_ == "local" {
                         Image(systemName: "laptopcomputer")
                     }
-                    Text("Keep All Beta")
+                    Text("全部保留乙端")
                 }
             }
             .buttonStyle(.bordered)
             .tint(.purple)
             .controlSize(.mini)
             .disabled(isBulkResolving)
+        }
+    }
+
+    private func localizedConfigValue(_ value: String) -> String {
+        switch value {
+        case "two-way-safe": return "双向安全"
+        case "two-way-resolved": return "双向已解决"
+        case "one-way-safe": return "单向安全"
+        case "one-way-replica": return "单向副本"
+        case "portable": return "可移植"
+        case "ignore": return "忽略"
+        case "posix-raw": return "POSIX 原始"
+        case "force-poll": return "强制轮询"
+        case "no-watch": return "不监视"
+        case "mutagen": return "Mutagen"
+        case "neighboring": return "邻近"
+        case "internal": return "内部"
+        case "none": return "无"
+        case "deflate": return "Deflate"
+        case "zstandard": return "Zstandard"
+        default: return value
         }
     }
 
@@ -621,17 +647,17 @@ private struct EndpointCard: View {
                 Circle()
                     .fill(endpoint.connected == true ? .green : .red)
                     .frame(width: 6, height: 6)
-                    .accessibilityLabel(endpoint.connected == true ? "Connected" : "Disconnected")
+                    .accessibilityLabel(endpoint.connected == true ? "已连接" : "未连接")
             }
 
-            endpointRow("Protocol", endpoint.protocol_)
-            if let user = endpoint.user {
-                endpointRow("User", user)
+            endpointRow("协议", protocolLabel(endpoint.protocol_))
+            if let user = displayUser {
+                endpointRow("用户", user)
             }
-            endpointRow("Host", displayHost)
+            endpointRow("主机", displayHost)
             if let path = endpoint.path {
                 HStack {
-                    Text("Path")
+                    Text("路径")
                         .fontWeight(.semibold)
                     Text(path)
                         .monospaced()
@@ -644,8 +670,8 @@ private struct EndpointCard: View {
 
             if let dirs = endpoint.directories, let files = endpoint.files, let size = endpoint.totalFileSize {
                 HStack(spacing: 8) {
-                    Text("\(dirs) dirs")
-                    Text("\(files) files")
+                    Text("\(dirs) 个目录")
+                    Text("\(files) 个文件")
                     Text(formatBytes(size))
                 }
                 .font(.caption)
@@ -659,7 +685,50 @@ private struct EndpointCard: View {
     }
 
     private var displayHost: String {
-        endpoint.host ?? ProcessInfo.processInfo.hostName
+        endpoint.host ?? localIPAddress
+    }
+
+    private var displayUser: String? {
+        endpoint.user ?? (endpoint.protocol_ == "local" ? NSUserName() : nil)
+    }
+
+    private var localIPAddress: String {
+        var interfaceList: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&interfaceList) == 0, let firstInterface = interfaceList else {
+            return ProcessInfo.processInfo.hostName
+        }
+        defer { freeifaddrs(interfaceList) }
+
+        var fallbackAddress: String?
+        var current: UnsafeMutablePointer<ifaddrs>? = firstInterface
+        while let interface = current {
+            let flags = Int32(interface.pointee.ifa_flags)
+            let addressPointer = interface.pointee.ifa_addr
+            if flags & IFF_UP != 0,
+               flags & IFF_LOOPBACK == 0,
+               let address = addressPointer,
+               address.pointee.sa_family == UInt8(AF_INET) {
+                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                let result = getnameinfo(
+                    address,
+                    socklen_t(address.pointee.sa_len),
+                    &host,
+                    socklen_t(host.count),
+                    nil,
+                    0,
+                    NI_NUMERICHOST
+                )
+                if result == 0 {
+                    let value = String(cString: host)
+                    if interface.pointee.ifa_name.flatMap({ String(cString: $0) }) == "en0" {
+                        return value
+                    }
+                    fallbackAddress = fallbackAddress ?? value
+                }
+            }
+            current = interface.pointee.ifa_next
+        }
+        return fallbackAddress ?? ProcessInfo.processInfo.hostName
     }
 
     private func endpointRow(_ label: String, _ value: String) -> some View {
@@ -667,6 +736,15 @@ private struct EndpointCard: View {
             Text(value)
         } label: {
             Text(label).fontWeight(.semibold)
+        }
+    }
+
+    private func protocolLabel(_ value: String) -> String {
+        switch value {
+        case "local": return "本地"
+        case "ssh": return "SSH"
+        case "docker": return "Docker"
+        default: return value
         }
     }
 
@@ -716,7 +794,7 @@ private struct ConflictCard: View {
 
             HStack(alignment: .top, spacing: 8) {
                 conflictPane(
-                    label: "Alpha (\(session.alpha.shortLabel))",
+                    label: "甲端（\(session.alpha.shortLabel)）",
                     color: .blue,
                     isLocal: session.alpha.protocol_ == "local",
                     changes: conflict.alphaChanges,
@@ -747,7 +825,7 @@ private struct ConflictCard: View {
                 }
 
                 conflictPane(
-                    label: "Beta (\(session.beta.shortLabel))",
+                    label: "乙端（\(session.beta.shortLabel)）",
                     color: .purple,
                     isLocal: session.beta.protocol_ == "local",
                     changes: conflict.betaChanges,
@@ -830,8 +908,8 @@ private struct ConflictCard: View {
                 pendingWinner = nil
             }
         } message: {
-            let loserLabel = pendingWinner == .alpha ? "Beta" : "Alpha"
-            Text("This will permanently delete the \(loserLabel) version of \"\(conflict.root)\" and replace it with the selected side.")
+            let loserLabel = pendingWinner == .alpha ? "乙端" : "甲端"
+            Text("这将永久删除“\(conflict.root)”的\(loserLabel)版本，并替换为选中的一端。")
         }
         .alert(
             "Add to Ignore List",
@@ -874,7 +952,7 @@ private struct ConflictCard: View {
                 .help("Reveal in Finder")
                 .accessibilityLabel("Reveal in Finder")
             }
-            Text("\(conflict.alphaChanges.count + conflict.betaChanges.count) changes")
+            Text("\(conflict.alphaChanges.count + conflict.betaChanges.count) 个变更")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -1020,9 +1098,19 @@ private struct ChangeLabel: View {
     }
 
     private var changeVerb: String {
-        if let old = change.old, change.new == nil { return "deleted \(old.kind)" }
-        if change.old == nil, let new = change.new { return "created \(new.kind)" }
-        if let old = change.old, let new = change.new { return "\(old.kind) -> \(new.kind)" }
-        return "modified"
+        if let old = change.old, change.new == nil { return "已删除 \(old.kind == "file" ? "文件" : "目录")" }
+        if change.old == nil, let new = change.new { return "已创建 \(new.kind == "file" ? "文件" : "目录")" }
+        if let old = change.old, let new = change.new { return "\(changeKindLabel(old.kind)) -> \(changeKindLabel(new.kind))" }
+        return "已修改"
+    }
+
+    private func changeKindLabel(_ kind: String) -> String {
+        switch kind {
+        case "file": return "文件"
+        case "directory": return "目录"
+        case "symlink": return "符号链接"
+        case "untracked": return "未跟踪"
+        default: return kind
+        }
     }
 }

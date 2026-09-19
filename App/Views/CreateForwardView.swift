@@ -96,11 +96,11 @@ struct CreateForwardView: View {
 
     private var sourceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Source")
+            Text("源端")
                 .font(.headline)
 
             Picker("Transport", selection: $sourceTransport) {
-                Text("Local").tag(TransportType.local)
+                Text("本地").tag(TransportType.local)
                 Text("SSH").tag(TransportType.ssh)
             }
             .pickerStyle(.segmented)
@@ -128,11 +128,11 @@ struct CreateForwardView: View {
 
     private var destinationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Destination")
+            Text("目标端")
                 .font(.headline)
 
             Picker("Transport", selection: $destTransport) {
-                Text("Local").tag(TransportType.local)
+                Text("本地").tag(TransportType.local)
                 Text("SSH").tag(TransportType.ssh)
             }
             .pickerStyle(.segmented)

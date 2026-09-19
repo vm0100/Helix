@@ -148,10 +148,10 @@ private struct SyncSessionRow: View {
 
                 HStack(spacing: 8) {
                     if let cycles = session.successfulCycles, cycles > 0 {
-                        Text("\(cycles) cycles")
+                        Text("\(cycles) 次同步")
                     }
                     if let conflicts = session.conflicts, !conflicts.isEmpty {
-                        Text("\(conflicts.count) conflicts")
+                        Text("\(conflicts.count) 个冲突")
                             .foregroundStyle(.orange)
                     }
                 }
@@ -193,11 +193,11 @@ private struct SyncSessionRow: View {
             if let user = endpoint.user, let host = endpoint.host {
                 return "\(user)@\(host)"
             }
-            return endpoint.host ?? "ssh"
+            return endpoint.host ?? "SSH"
         case "docker":
-            return "docker"
+            return "Docker"
         default:
-            return "local"
+            return "本地"
         }
     }
 }
@@ -251,8 +251,8 @@ private struct ForwardSessionRow: View {
     }
 
     private var endpointSummary: String {
-        let src = session.sourceEndpoint ?? "source"
-        let dst = session.destinationEndpoint ?? "destination"
+        let src = session.sourceEndpoint ?? "源端"
+        let dst = session.destinationEndpoint ?? "目标端"
         return "\(src) -> \(dst)"
     }
 }

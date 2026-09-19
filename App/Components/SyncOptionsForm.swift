@@ -21,7 +21,7 @@ struct SyncOptionsForm: View {
         VStack(alignment: .leading, spacing: 16) {
             DisclosureGroup(isExpanded: $showIgnore) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("One pattern per line. Uses gitignore-style syntax.")
+                    Text("每行一个模式，使用 gitignore 风格语法。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -40,55 +40,55 @@ struct SyncOptionsForm: View {
                         .frame(minHeight: 80)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.quaternary))
-                    Toggle("Apply .gitignore rules as sync ignore patterns", isOn: $ignoreVCS)
+                    Toggle("将 .gitignore 规则作为同步忽略模式", isOn: $ignoreVCS)
                 }
                 .padding(.top, 4)
             } label: {
-                tappableLabel("Ignore Rules") { showIgnore.toggle() }
+                tappableLabel("忽略规则") { showIgnore.toggle() }
             }
 
             DisclosureGroup(isExpanded: $showSymlink) {
-                Picker("Mode", selection: $symlinkMode) {
-                    Text("Portable (safe relative links)").tag("portable")
-                    Text("Ignore (skip all symlinks)").tag("ignore")
-                    Text("POSIX Raw (all links, POSIX only)").tag("posix-raw")
+                Picker("模式", selection: $symlinkMode) {
+                    Text("可移植（安全的相对链接）").tag("portable")
+                    Text("忽略（跳过所有符号链接）").tag("ignore")
+                    Text("POSIX 原始（所有链接，仅限 POSIX）").tag("posix-raw")
                 }
                 .padding(.top, 4)
             } label: {
-                tappableLabel("Symlink Handling") { showSymlink.toggle() }
+                tappableLabel("符号链接处理") { showSymlink.toggle() }
             }
 
             DisclosureGroup(isExpanded: $showCompression) {
-                Picker("Algorithm", selection: $compression) {
-                    Text("None").tag("none")
-                    Text("Deflate (zlib)").tag("deflate")
-                    Text("Zstandard (faster)").tag("zstandard")
+                Picker("算法", selection: $compression) {
+                    Text("无").tag("none")
+                    Text("Deflate（zlib）").tag("deflate")
+                    Text("Zstandard（更快）").tag("zstandard")
                 }
                 .padding(.top, 4)
             } label: {
-                tappableLabel("Compression") { showCompression.toggle() }
+                tappableLabel("压缩") { showCompression.toggle() }
             }
 
             DisclosureGroup(isExpanded: $showWatch) {
-                Picker("Mode", selection: $watchMode) {
-                    Text("Portable (automatic)").tag("portable")
-                    Text("Force Poll (unreliable FS)").tag("force-poll")
-                    Text("No Watch (manual flush only)").tag("no-watch")
+                Picker("模式", selection: $watchMode) {
+                    Text("可移植（自动）").tag("portable")
+                    Text("强制轮询（不可靠的文件系统）").tag("force-poll")
+                    Text("不监视（仅手动刷新）").tag("no-watch")
                 }
                 .padding(.top, 4)
             } label: {
-                tappableLabel("Watch Mode") { showWatch.toggle() }
+                tappableLabel("监视模式") { showWatch.toggle() }
             }
 
             DisclosureGroup(isExpanded: $showStaging) {
-                Picker("Mode", selection: $stageMode) {
-                    Text("Mutagen (in ~/.mutagen)").tag("mutagen")
-                    Text("Neighboring (beside sync root)").tag("neighboring")
-                    Text("Internal (inside sync root)").tag("internal")
+                Picker("模式", selection: $stageMode) {
+                    Text("Mutagen（位于 ~/.mutagen）").tag("mutagen")
+                    Text("邻近（同步根目录旁）").tag("neighboring")
+                    Text("内部（同步根目录内）").tag("internal")
                 }
                 .padding(.top, 4)
             } label: {
-                tappableLabel("Staging") { showStaging.toggle() }
+                tappableLabel("暂存") { showStaging.toggle() }
             }
         }
     }
