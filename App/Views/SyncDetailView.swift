@@ -136,8 +136,24 @@ struct SyncDetailView: View {
     }
 
     private var creationTimeLabel: String {
-        String(session.creationTime.prefix(19)).replacingOccurrences(of: "T", with: " ")
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var date = parser.date(from: session.creationTime)
+        if date == nil {
+            parser.formatOptions = [.withInternetDateTime]
+            date = parser.date(from: session.creationTime)
+        }
+        guard let date else { return session.creationTime }
+        return Self.creationTimeFormatter.string(from: date)
     }
+
+    private static let creationTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
